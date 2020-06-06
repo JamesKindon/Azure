@@ -107,9 +107,9 @@ catch {
 # Assign Roles
 # ============================================================================
 #Get the name of the custom role
-$FileShareReaderRole = Get-AzRoleDefinition "Storage File Data SMB Share Reader"
-$FileShareContributorRole = Get-AzRoleDefinition "Storage File Data SMB Share Contributor"
-$FileShareElevatedContributorRole = Get-AzRoleDefinition "Storage File Data SMB Share Elevated Contributor"
+$FileShareReaderRole = Get-AzRoleDefinition "Storage File Data SMB Share Reader" # not required for the most part, but added to admin account anyway to save on complexity
+$FileShareContributorRole = Get-AzRoleDefinition "Storage File Data SMB Share Contributor" # used for share access to the storage account - NTFS leveraged for fine grained controls
+$FileShareElevatedContributorRole = Get-AzRoleDefinition "Storage File Data SMB Share Elevated Contributor" # used to set the admin accounts with permissions to manage NTFS
 
 #Constrain the scope to the target file share
 $scope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Storage/storageAccounts/$StorageAccountName/fileServices/default/fileshares/$ShareName"
