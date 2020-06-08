@@ -213,6 +213,17 @@ function ConfigureNTFSPermissions {
     Write-host "Removing mapped drive" -ForegroundColor Cyan
     net use /D $DriveLetter
 }
+
+function ImportModule {
+    Write-Host "Importing $ModuleName Module" -ForegroundColor Cyan
+    try {
+        Import-Module -Name $ModuleName -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to Import $ModuleName Module. Exiting"
+        Exit 1
+    }
+}
 #endregion
 
 #region execute
@@ -221,32 +232,33 @@ function ConfigureNTFSPermissions {
 # ============================================================================
 
 $OutFile = $ModulePath + "\" + ($DownloadUrl | Split-Path -Leaf)
+$ModuleName = "AZFilesHybrid"
 
-if (!(Test-Path -Path $ModulePath)) {
-    New-Item -Path $ModulePath -ItemType Directory | Out-Null
+$AZFilesHybrid = (Get-Module -Name $ModuleName)
+if ($null -ne $AZFilesHybrid) {
+    Write-Host "$($ModuleName) version $($AZFilesHybrid.Version) is installed"
+    #Import AzFilesHybrid module
+    ImportModule
 }
-try {
-    Write-Host "Downloading AZFilesHybrid PowerShell Module" -ForegroundColor Cyan
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutFile -ErrorAction Stop
-    Expand-Archive -Path $OutFile -DestinationPath $ModulePath -Force
-}
-catch {
-    Write-Warning "Failed to Download AZ Files Hyrbid Module. Exiting"
-    Exit 1
-}
-
-# Navigate to where AzFilesHybrid is unzipped and stored and run to copy the files into your path
-Push-Location $ModulePath
-.\CopyToPSPath.ps1
-#Import AzFilesHybrid module
-Write-Host "Importing AZFilesHybrid Module" -ForegroundColor Cyan
-try {
-    Import-Module -Name AzFilesHybrid -Force -ErrorAction Stop
-}
-catch {
-    Write-Warning "Failed to Import Module. Exiting"
-    Exit 1
+else {
+    if (!(Test-Path -Path $ModulePath)) {
+        New-Item -Path $ModulePath -ItemType Directory | Out-Null
+    }
+    try {
+        Write-Host "Downloading $ModuleName PowerShell Module" -ForegroundColor Cyan
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutFile -ErrorAction Stop
+        Expand-Archive -Path $OutFile -DestinationPath $ModulePath -Force
+        # Navigate to where AzFilesHybrid is unzipped and stored and run to copy the files into your path
+        Push-Location $ModulePath
+        .\CopyToPSPath.ps1
+        #Import AzFilesHybrid module
+        ImportModule
+    }
+    catch {
+        Write-Warning "Failed to Download $ModuleName Module. Exiting"
+        Exit 1
+    }    
 }
 
 # ============================================================================
