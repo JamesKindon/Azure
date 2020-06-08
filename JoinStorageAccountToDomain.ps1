@@ -187,8 +187,17 @@ function ConfigureNTFSPermissions {
     
     $connectTestResult = Test-NetConnection -ComputerName ($StorageAccountName + ".file.core.windows.net") -Port 445
     if ($connectTestResult.TcpTestSucceeded) {
-        net use $DriveLetter $Path $Key.Value /user:Azure\$StorageAccountName | Out-Null
-        if (!(Test-Path $DriveLetter)) {
+        try {
+            $DriveParams = @{
+                LocalPath = $DriveLetter
+                RemotePath = $Path
+                UserName = ("Azure\" + $StorageAccountName)
+                Password = $Key.Value
+                ErrorAction = "Stop"
+            }
+            New-SmbMapping @DriveParams | Out-Null
+        }
+        catch {
             Write-Warning "Drive Failed to map. Exiting"
             Exit 1
         }
@@ -211,7 +220,7 @@ function ConfigureNTFSPermissions {
     icacls $DriveLetter
     
     Write-host "Removing mapped drive" -ForegroundColor Cyan
-    net use /D $DriveLetter
+    Remove-SmbMapping -LocalPath $DriveLetter -Force
 }
 
 function ImportModule {
