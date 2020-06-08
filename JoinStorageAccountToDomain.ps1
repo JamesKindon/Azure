@@ -90,7 +90,6 @@ function JoinStorageAccountToDomain {
         Write-Warning $Error[0].Exception
         Exit 1
     }
-
 }
 
 function DebugStorageAccount {
