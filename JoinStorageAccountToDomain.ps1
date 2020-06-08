@@ -188,10 +188,10 @@ function ConfigureNTFSPermissions {
     if ($connectTestResult.TcpTestSucceeded) {
         try {
             $DriveParams = @{
-                LocalPath = $DriveLetter
-                RemotePath = $Path
-                UserName = ("Azure\" + $StorageAccountName)
-                Password = $Key.Value
+                LocalPath   = $DriveLetter
+                RemotePath  = $Path
+                UserName    = ("Azure\" + $StorageAccountName)
+                Password    = $Key.Value
                 ErrorAction = "Stop"
             }
             New-SmbMapping @DriveParams | Out-Null
