@@ -239,7 +239,6 @@ function ImportModule {
 # ============================================================================
 # Download and Import Module
 # ============================================================================
-
 $OutFile = $ModulePath + "\" + ($DownloadUrl | Split-Path -Leaf)
 $ModuleName = "AZFilesHybrid"
 
