@@ -198,6 +198,7 @@ function ConfigureNTFSPermissions {
         }
         catch {
             Write-Warning "Drive Failed to map. Exiting"
+            Write-Warning $Error[0].Exception
             Exit 1
         }
     }
