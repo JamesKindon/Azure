@@ -15,12 +15,19 @@
     Will configure NTFS permissions for FSLogix Containers
 .PARAMETER DebugStorageAccountDomainJoin
     Will debug join issues
+.PARAMETER JSON
+    Will consume a JSON import for configuration
+.PARAMETER JSONInputPath
+    Specifies the JSON input file 
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -ConfigIAMRoles -ConfigNTFSPermissions
     Will configure IAM roles and configure NTFS permissions for Containers
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json
+    Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
 .NOTES
 #>
 
@@ -40,7 +47,13 @@ Param(
     [Switch]$ConfigNTFSPermissions,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$DebugStorageAccountDomainJoin
+    [Switch]$DebugStorageAccountDomainJoin,
+
+    [Parameter(Mandatory = $false)]
+    [Switch]$JSON,
+
+    [Parameter(Mandatory = $false)]
+    [String]$JSONInputPath
 )
 #endregion
 
@@ -49,7 +62,7 @@ Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
 
 #region variables
 # ============================================================================
-# Variables - change these per subscription (remove the "--")
+# Variables - change these per subscription (remove the "--") - If not using JSON input
 # ============================================================================
 $SubscriptionId = "--SubscriptionID--" #subscription Id
 $ResourceGroupName = "--Resource Group--" #resource group name
@@ -236,6 +249,49 @@ function ImportModule {
 #endregion
 
 #region execute
+# ============================================================================
+# Handle JSON input
+# ============================================================================
+if ($JSON.IsPresent) {
+    Write-Host "JSON input selected. Importing JSON data from: $JSONInputPath " -ForegroundColor Cyan
+    try {
+        if (!(Test-Path $JSONInputPath)) {
+            Write-Warning "Cannot find file: $JSONInputPath"
+            Exit 1
+        }
+        $EnvironmentDetails = Get-Content -Raw -Path $JSONInputPath -ErrorAction Stop | ConvertFrom-Json
+    }
+    catch {
+        Write-Warning "JSON import failed. Exiting"
+        Write-Warning $Error[0].Exception
+        Exit 1
+    }
+
+    $SubscriptionId = $EnvironmentDetails.SubscriptionId #subscription Id
+    $ResourceGroupName = $EnvironmentDetails.ResourceGroupName #resource group name
+    $StorageAccountName = $EnvironmentDetails.StorageAccountName #storage account name
+    $ShareName = $EnvironmentDetails.ShareName #storage account share name
+    $DomainAccountType = $EnvironmentDetails.DomainAccountType #-DomainAccountType "<ComputerAccount|ServiceLogonAccount>"
+    $OU = $EnvironmentDetails.OU #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
+    $FSContributorGroups = $EnvironmentDetails.FSContributorGroups -replace "@{name=", "" -replace "}", "" # Array of groups to Assign Storage File Data SMB Share Contributor
+    $FSAdminUsers = $EnvironmentDetails.FSAdminUsers -replace "@{name=", "" -replace "}", "" # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
+    $DownloadUrl = $EnvironmentDetails.DownloadUrl
+    $ModulePath = $EnvironmentDetails.ModulePath -replace "//", "\" #Output path for modules
+    $DriveLetter = $EnvironmentDetails.DriveLetter # Letter used to map drive and set ACLs
+}
+
+Write-Host "Subscription ID is set to: $($SubscriptionId)" -ForegroundColor Cyan
+Write-Host "Resource Group name is set to: $($ResourceGroupName)" -ForegroundColor Cyan
+Write-Host "Storage account name is set to: $($StorageAccountName)" -ForegroundColor Cyan
+Write-Host "Share Name is set to: $($ShareName)" -ForegroundColor Cyan
+Write-Host "Domain account type is set to: $($DomainAccountType)" -ForegroundColor Cyan
+Write-Host "OU is set to: $($OU)" -ForegroundColor Cyan
+Write-Host "File Server Contributor groups defined: $($FSContributorGroups)" -ForegroundColor Cyan
+Write-Host "File Server Admin users defined: $($FSAdminUsers)" -ForegroundColor Cyan
+Write-Host "Download URL is set to: $($DownloadUrl)" -ForegroundColor Cyan
+Write-Host "Module path is set to: $($ModulePath)" -ForegroundColor Cyan
+Write-Host "Driver letter is set to: $($DriveLetter)" -ForegroundColor Cyan
+
 # ============================================================================
 # Download and Import Module
 # ============================================================================
