@@ -165,7 +165,7 @@ function AssignIAMRoles {
             $ContributorRoleGroup = @{
                 ObjectId           = (Get-AzADGroup -SearchString $Group).Id
                 RoleDefinitionName = $FileShareContributorRole.Name
-                ResourceGroupName  = $ResourceGroupName
+                Scope              = $Scope
                 ErrorAction        = "Stop"
             }
             New-AzRoleAssignment @ContributorRoleGroup
