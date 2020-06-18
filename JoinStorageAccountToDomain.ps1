@@ -3,7 +3,8 @@
     Automates the download of the AzureFilesHyrbid Module for Domain Joining Storage Accuonts
     Automates the Domain Join tasks for the Storage Accounts
     Automates the deployment of relevant IAM roles
-    Automates the configuration of NTFS permissions for FSLogix Containers 
+    Automates the configuration of NTFS permissions for FSLogix Containers
+    Validates and outputs basic Storage Account Info
 .DESCRIPTION
     Leverages the scripts provided by Microsoft
     https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-auth-active-directory-enable
@@ -19,6 +20,14 @@
     Will consume a JSON import for configuration
 .PARAMETER JSONInputPath
     Specifies the JSON input file 
+.PARAMETER LogPath
+    Logpath output for all operations
+.PARAMETER LogRollover
+    Number of days before logfiles are rolled over. Default is 5
+.PARAMETER ValidateStorageAccount
+    Will validate and output basic Storage Account Settings
+.PARAMETER IOProfile
+    IO profile size for FSlogix Container Math. Default is 25 IOPS
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
@@ -28,7 +37,24 @@
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json
     Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
+    Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers and output basic storage account details
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
+    Will output basic storage account details
 .NOTES
+    Updates 17.06.2020
+    - You can use a JSON import file (good) or alter variables within this script (not so good)
+    - Added proper logging - no more write host
+    - Optimised some basic code (Thanks Guy Leech)
+    - Added some functions to clean up repetitive crud
+    - Added a Validate Storage Acccount function to output basics around the target Storage Account including (Thanks Neil Spellings for the nudge)
+        - Account Type (premium or Standard)
+        - Expected IO and Burst IO
+        - Firewall configuration
+        - Private and Public Endpoint configurations
+        - Large File Shares
 #>
 
 #region Params
@@ -53,7 +79,19 @@ Param(
     [Switch]$JSON,
 
     [Parameter(Mandatory = $false)]
-    [String]$JSONInputPath
+    [String]$JSONInputPath,
+
+    [Parameter(Mandatory = $false)]
+    [string]$LogPath = "C:\StorageAccounts\StorageAccount.log", 
+
+    [Parameter(Mandatory = $false)]
+    [int]$LogRollover = 5, # number of days before logfile rollover occurs
+
+    [Parameter(Mandatory = $false)]
+    [Switch]$ValidateStorageAccount,
+
+    [Parameter(Mandatory = $false)]
+    [int]$IOProfile = 25 # IO profile for FSLogix Container
 )
 #endregion
 
@@ -84,7 +122,7 @@ $DriveLetter = "X" # Letter used to map drive and set ACLs
 function JoinStorageAccountToDomain {
     # -OrganizationalUnitName "Azure Files"
     # If you don't provide the OU name as an input parameter, the AD identity that represents the storage account will be created under the root directory.
-    Write-host "Attempting to Join Storage Account $StorageAccountName to Domain in OU $OU" -ForegroundColor Cyan
+    Write-Log -Message "Attempting to Join Storage Account $StorageAccountName to Domain in OU $OU" -Level Info
 
     $JoinParams = @{
         ResourceGroupName                   = $ResourceGroupName
@@ -96,11 +134,12 @@ function JoinStorageAccountToDomain {
 
     try {
         Join-AzStorageAccountForAuth @JoinParams
-        Write-Host "Successfully Joined Domain" -ForegroundColor Cyan
+        Write-Log -Message "Successfully Joined Domain" -Level Info
     }
     catch {
-        Write-Warning "Failed to Join Domain"
-        Write-Warning $Error[0].Exception
+        Write-Log -Message "Failed to Join Domain" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
         Exit 1
     }
 }
@@ -122,7 +161,7 @@ function AssignIAMRoles {
 
     #Assign the custom role to the target identity with the specified scope.
     foreach ($Admin in $FSAdminUsers) {
-        Write-Host "Assigning Admin ID $Admin to Role $($FileShareReaderRole.Name)" -ForegroundColor Cyan
+        Write-Log -Message "Assigning Admin ID $Admin to Role $($FileShareReaderRole.Name)" -Level Info
         try {
             $ReaderRole = @{
                 SignInName         = $Admin
@@ -131,14 +170,14 @@ function AssignIAMRoles {
                 ErrorAction        = "Stop"
             }
             New-AzRoleAssignment @ReaderRole
-            Write-Host "Successfully added role assignment" -ForegroundColor Cyan
+            Write-Log -Message "Successfully added role assignment" -Level Info
         }
         catch {
-            Write-Warning "Failed to assign role"
-            Write-Warning $Error[0].Exception
+            Write-Log -Message "Failed to assign role" -Level Warn
+            Write-Log -Message $_ -Level Warn
         }
 
-        Write-Host "Assigning Admin ID $Admin to Role $($FileShareContributorRole.Name)" -ForegroundColor Cyan
+        Write-Log -Message "Assigning Admin ID $Admin to Role $($FileShareContributorRole.Name)" -Level Info
         try {
             $ContributorRole = @{
                 SignInName         = $Admin
@@ -147,14 +186,14 @@ function AssignIAMRoles {
                 ErrorAction        = "Stop"
             }
             New-AzRoleAssignment @ContributorRole
-            Write-Host "Successfully added role assignment" -ForegroundColor Cyan
+            Write-Log -Message "Successfully added role assignment" -Level Info
         }
         catch {
-            Write-Warning "Failed to assign role"
-            Write-Warning $Error[0].Exception
+            Write-Log -Message "Failed to assign role" -Level Warn
+            Write-Log -Message $_ -Level Warn
         }
 
-        Write-Host "Assigning Admin ID $Admin to Role $($FileShareElevatedContributorRole.Name)" -ForegroundColor Cyan
+        Write-Log -Message "Assigning Admin ID $Admin to Role $($FileShareElevatedContributorRole.Name)" -Level Info
         try {
             $ElevatedContributorRole = @{
                 SignInName         = $Admin
@@ -163,17 +202,17 @@ function AssignIAMRoles {
                 ErrorAction        = "Stop"
             }
             New-AzRoleAssignment @ElevatedContributorRole
-            Write-Host "Successfully added role assignment" -ForegroundColor Cyan
+            Write-Log -Message "Successfully added role assignment" -Level Info
         }
         catch {
-            Write-Warning "Failed to assign role"
-            Write-Warning $Error[0].Exception
+            Write-Log -Message "Failed to assign role" -Level Warn
+            Write-Log -Message $_ -Level Warn
         }
     }
 
     # Add Groups to Roles
     foreach ($Group in $FSContributorGroups) {
-        Write-Host "Assigning Group $Group to Role $($FileShareContributorRole.Name)" -ForegroundColor Cyan
+        Write-Log -Message "Assigning Group $Group to Role $($FileShareContributorRole.Name)" -Level Info
         try {
             $ContributorRoleGroup = @{
                 ObjectId           = (Get-AzADGroup -SearchString $Group).Id
@@ -182,11 +221,11 @@ function AssignIAMRoles {
                 ErrorAction        = "Stop"
             }
             New-AzRoleAssignment @ContributorRoleGroup
-            Write-Host "Successfully added role assignment" -ForegroundColor Cyan
+            Write-Log -Message "Successfully added role assignment" -Level Info
         }
         catch {
-            Write-Warning "Failed to assign role"
-            Write-Warning $Error[0].Exception
+            Write-Log -Message "Failed to assign role" -Level Warn
+            Write-Log -Message $_ -Level Warn
         }
     }
 }
@@ -207,63 +246,274 @@ function ConfigureNTFSPermissions {
                 Password    = $Key.Value
                 ErrorAction = "Stop"
             }
-            New-SmbMapping @DriveParams | Out-Null
+            $null = New-SmbMapping @DriveParams
         }
         catch {
-            Write-Warning "Drive Failed to map. Exiting"
-            Write-Warning $Error[0].Exception
+            Write-Log -Message "Drive Failed to map. Exiting" -Level Warn
+            Write-Log -Message $_ -Level Warn
+            StopIteration
             Exit 1
         }
     }
     else {
-        Write-Warning -Message "Unable to reach the Azure storage account via port 445"
+        Write-Log -Message "Unable to reach the Azure storage account via port 445" -Level Warn
+        StopIteration
         Exit 1
     }
     
-    Write-Host "Existing NTFS permissions are:" -ForegroundColor Cyan
+    Write-Log -Message "Existing NTFS permissions are:" -Level Info
     icacls $DriveLetter
     
-    Write-Host "Setting new NTFS permissions:" -ForegroundColor Cyan
+    Write-Log -Message "Setting new NTFS permissions:" -Level Info
     icacls $DriveLetter /remove "Authenticated Users"
     icacls $DriveLetter /grant '"Authenticated Users":(M)'
     icacls $DriveLetter /grant '"Creator Owner":(OI)(CI)(IO)(M)'
     icacls $DriveLetter /remove "Builtin\Users"
     
-    Write-Host "New permissions are:" -ForegroundColor Cyan
+    Write-Log -Message "New permissions are:" -Level Info
     icacls $DriveLetter
     
-    Write-host "Removing mapped drive" -ForegroundColor Cyan
+    Write-Log -Message "Removing mapped drive" -Level Info
     Remove-SmbMapping -LocalPath $DriveLetter -Force
 }
 
 function ImportModule {
-    Write-Host "Importing $ModuleName Module" -ForegroundColor Cyan
+    Write-Log -Message "Importing $ModuleName Module" -Level Info
     try {
         Import-Module -Name $ModuleName -Force -ErrorAction Stop
     }
     catch {
-        Write-Warning "Failed to Import $ModuleName Module. Exiting"
+        Write-Log -Message "Failed to Import $ModuleName Module. Exiting" -Level Warn
         Exit 1
+    }
+}
+
+function Write-Log {
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(Mandatory = $true,
+            ValueFromPipelineByPropertyName = $true)]
+        [ValidateNotNullOrEmpty()]
+        [Alias("LogContent")]
+        [string]$Message,
+
+        [Parameter(Mandatory = $false)]
+        [Alias('LogPath')]
+        [string]$Path = $LogPath,
+        
+        [Parameter(Mandatory = $false)]
+        [ValidateSet("Error", "Warn", "Info")]
+        [string]$Level = "Info",
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$NoClobber
+    )
+
+    Begin {
+        # Set VerbosePreference to Continue so that verbose messages are displayed.
+        $VerbosePreference = 'Continue'
+    }
+    Process {
+        
+        # If the file already exists and NoClobber was specified, do not write to the log.
+        if ((Test-Path $Path) -AND $NoClobber) {
+            Write-Error "Log file $Path already exists, and you specified NoClobber. Either delete the file or specify a different name."
+            Return
+        }
+
+        # If attempting to write to a log file in a folder/path that doesn't exist create the file including the path.
+        elseif (!(Test-Path $Path)) {
+            Write-Verbose "Creating $Path."
+            $NewLogFile = New-Item $Path -Force -ItemType File
+        }
+
+        else {
+            # Nothing to see here yet.
+        }
+
+        # Format Date for our Log File
+        $FormattedDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+        # Write message to error, warning, or verbose pipeline and specify $LevelText
+        switch ($Level) {
+            'Error' {
+                Write-Error $Message
+                $LevelText = 'ERROR:'
+            }
+            'Warn' {
+                Write-Warning $Message
+                $LevelText = 'WARNING:'
+            }
+            'Info' {
+                Write-Verbose $Message
+                $LevelText = 'INFO:'
+            }
+        }
+        
+        # Write log entry to $Path
+        "$FormattedDate $LevelText $Message" | Out-File -FilePath $Path -Append
+    }
+    End {
+    }
+}
+
+function Start-Stopwatch {
+    Write-Log -Message "Starting Timer" -Level Info
+    $Global:StopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+}
+
+function Stop-Stopwatch {
+    Write-Log -Message "Stopping Timer" -Level Info
+    $StopWatch.Stop()
+    if ($StopWatch.Elapsed.TotalSeconds -le 1) {
+        Write-Log -Message "Script processing took $($StopWatch.Elapsed.TotalMilliseconds) ms to complete." -Level Info
+    }
+    else {
+        Write-Log -Message "Script processing took $($StopWatch.Elapsed.Seconds) seconds to complete." -Level Info
+    }
+}
+
+function RollOverlog {
+    $LogFile = $LogPath
+    $LogOld = Test-Path $LogFile -OlderThan (Get-Date).AddDays(-$LogRollover)
+    $RolloverDate = (Get-Date -Format "dd-MM-yyyy")
+    if ($LogOld) {
+        Write-Log -Message "$LogFile is older than $LogRollover days, rolling over" -Level Info
+        $NewName = [io.path]::GetFileNameWithoutExtension($LogFile)
+        $NewName = $NewName + "_$RolloverDate.log"
+        Rename-Item -Path $LogFile -NewName $NewName
+        Write-Log -Message "Old logfile name is now $NewName" -Level Info
+    }    
+}
+
+function StartIteration {
+    Write-Log -Message "--------Starting Iteration--------" -Level Info
+    RollOverlog
+    Start-Stopwatch
+}
+
+function StopIteration {
+    Stop-Stopwatch
+    Write-Log -Message "--------Finished Iteration--------" -Level Info
+}
+
+function ValidateStorageAccount {
+    $StorageAcccount = Get-AzStorageAccount -Name $StorageAccountName -ResourceGroupName $ResourceGroupName
+    Write-Log -Message "Using FSLogix IO Profile of $($IOProfile)" -Level Info
+
+    if ($StorageAcccount.Sku.Tier -eq "Premium") {
+        Write-Log -Message "Storage Account $($StorageAccountName) is a $($StorageAcccount.Sku.Tier) Account" -Level Info
+
+        try {
+            $Share = Get-AzStorageShare -Name $ShareName -context $StorageAcccount.Context -ErrorAction Stop
+        }
+        catch {
+            Write-Log -Message "Share not found" -Level Warn
+            Write-Log -Message "$_" -Level Warn
+            StopIteration
+            exit 1
+        }
+
+        Write-Log -Message "The share $($ShareName) has a quota (size) of $($Share.Quota) GiB" -Level Info
+        Write-Log -Message "This will result in a provisioned IO/s capability of $($Share.Quota) IO/s" -Level Info
+        Write-Log -Message "The burst IO/s capacity will be $($Share.Quota * 3) IO/s" -Level Info
+        Write-Log -Message "With an estimated IO allowance of $($IOProfile) IOPS for FSLogix Containers, the estimated number of containers in a steady state operation is $($Share.Quota / $IOProfile )" -Level Info
+    }
+    else {
+        Write-Log -Message "Storage Account $($StorageAccountName) is a $($StorageAcccount.Sku.Tier) Account" -Level Info
+        Write-Log -Message "Premium File Shares are recommended for FSLogix Container workloads" -Level Warn
+    }
+
+    $DefaultAction = $StorageAcccount.NetworkRuleSet.DefaultAction #Firewall Action
+    $ServiceBypass = $StorageAcccount.NetworkRuleSet.Bypass #(Trusted Services)
+    $AllowedNetworks = $StorageAcccount.NetworkRuleSet.VirtualNetworkRules.VirtualNetworkResourceId #allowed vnets
+    $AllowedIPs = $StorageAcccount.NetworkRuleSet.IpRules #inbound rules
+    $LargeFileShares = $StorageAcccount.LargeFileSharesState #Large file shares are enabled
+
+    #Default Security Stance
+    if ($DefaultAction -eq "Deny") {
+        Write-Log -Message "The default firewall action is set to Deny on the Storage Account: $($StorageAccountName)" -Level Info
+    }
+    else {
+        Write-Log -Message "The default firewall action is set to allow on the Storage Account: $($StorageAccountName)" -Level Info
+    }
+
+    # Service Bypass
+    if ($ServiceBypass -eq "AzureServices") {
+        Write-Log -Message "Azure services are allowed to bypass the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+    }
+    else {
+        Write-Log -Message "Azure Services cannot bypass the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+    }
+
+    #Large File Shares
+    if ($LargeFileShares -eq "Enabled") {
+        Write-Log -Message "Large File Shares are enabled on the Storage Account: $($StorageAccountName)" -Level Info
+        if ($StorageAcccount.Sku.Tier -eq "Standard") {
+            Write-Log -Message "A Standard Storage Account with Large File Shares enabled has a maximum IO capability of 10,000 IOPS" -Level Info
+        }
+    }
+    else {
+        Write-Log -Message "Large File shares are not enabled on the Storage Account: $($StorageAccountName)" -Level Info
+        Write-Log -Message "A Standard Storage Account without Large File Shares enabled has a maximum IO capability of 1,000 IOPS" -Level Info
+    }
+
+    # Network Configurations - Firewall
+    if ($null -eq $AllowedNetworks) {
+        Write-Log -Message "There are no defined VNET objects on the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+    }
+    else {
+        Write-Log -Message "The following VNET and Subnets have been defined on the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+        foreach ($_ in $AllowedNetworks) {
+            Write-Log -Message "Subnet: $(($_ | Split-Path -Leaf)) in VNET: $($_.Split("/") | Select-Object -Index 8)" -Level Info
+        }
+    }
+
+    #Allowed IP configurations - Firewall 
+    if ($AllowedIPs.Count -eq 0) {
+        Write-Log -Message "There are no defined IP objects on the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+    }
+    else {
+        Write-Log -Message "$($AllowedIPs.Count) IP objects have been defined on the Storage Account Firewall for Storage Account: $($StorageAccountName)" -Level Info
+        foreach ($IP in $AllowedIPs) {
+            Write-Log -Message "$($IP.IPAddressOrRange) has been defined with the following action type: $($IP.Action)" -Level Info
+        }
+    }
+
+    $null = Get-AzPrivateEndpoint | Where-Object { $_.PrivateLinkServiceConnections.Id -like "*$StorageAccountName*" }
+    $PrivateEndpoint = Get-AzPrivateEndpoint | Where-Object { $_.PrivateLinkServiceConnections.Id -like "*$StorageAccountName*" }
+    $ApprovedPrivateEndpoint = $PrivateEndpoint.PrivateLinkServiceConnections.PrivateLinkServiceConnectionState.Status
+    if ($ApprovedPrivateEndpoint -eq "Approved") {
+        $Subnet = $PrivateEndpoint.Subnet.Id | Split-Path -Leaf
+        Write-Log -Message "There is an approved Private Endpoint attached to the Storage Account: $($PrivateEndpoint.Name) attached to subnet: $Subnet" -Level Info
+    }
+    else {
+        Write-Log -Message "There are no private endpoints configured on the Storage Account: $($StorageAccountName)" -Level Info
     }
 }
 #endregion
 
 #region execute
+StartIteration
+
 # ============================================================================
 # Handle JSON input
 # ============================================================================
 if ($JSON.IsPresent) {
-    Write-Host "JSON input selected. Importing JSON data from: $JSONInputPath " -ForegroundColor Cyan
+    Write-Log -Message "JSON input selected. Importing JSON data from: $JSONInputPath" -Level Info
     try {
         if (!(Test-Path $JSONInputPath)) {
-            Write-Warning "Cannot find file: $JSONInputPath"
+            Write-Log -Message "Cannot find file: $JSONInputPath" -Level Warn
+            StopIteration
             Exit 1
         }
         $EnvironmentDetails = Get-Content -Raw -Path $JSONInputPath -ErrorAction Stop | ConvertFrom-Json
     }
     catch {
-        Write-Warning "JSON import failed. Exiting"
-        Write-Warning $Error[0].Exception
+        Write-Log -Message "JSON import failed. Exiting" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
         Exit 1
     }
 
@@ -280,17 +530,17 @@ if ($JSON.IsPresent) {
     $DriveLetter = $EnvironmentDetails.DriveLetter # Letter used to map drive and set ACLs
 }
 
-Write-Host "Subscription ID is set to: $($SubscriptionId)" -ForegroundColor Cyan
-Write-Host "Resource Group name is set to: $($ResourceGroupName)" -ForegroundColor Cyan
-Write-Host "Storage account name is set to: $($StorageAccountName)" -ForegroundColor Cyan
-Write-Host "Share Name is set to: $($ShareName)" -ForegroundColor Cyan
-Write-Host "Domain account type is set to: $($DomainAccountType)" -ForegroundColor Cyan
-Write-Host "OU is set to: $($OU)" -ForegroundColor Cyan
-Write-Host "File Server Contributor groups defined: $($FSContributorGroups)" -ForegroundColor Cyan
-Write-Host "File Server Admin users defined: $($FSAdminUsers)" -ForegroundColor Cyan
-Write-Host "Download URL is set to: $($DownloadUrl)" -ForegroundColor Cyan
-Write-Host "Module path is set to: $($ModulePath)" -ForegroundColor Cyan
-Write-Host "Driver letter is set to: $($DriveLetter)" -ForegroundColor Cyan
+Write-Log -Message "Subscription ID is set to: $($SubscriptionId)" -Level Info
+Write-Log -Message "Resource Group name is set to: $($ResourceGroupName)" -Level Info
+Write-Log -Message "Storage account name is set to: $($StorageAccountName)" -Level Info
+Write-Log -Message "Share Name is set to: $($ShareName)" -Level Info
+Write-Log -Message "Domain account type is set to: $($DomainAccountType)" -Level Info
+Write-Log -Message "OU is set to: $($OU)" -Level Info
+Write-Log -Message "File Server Contributor groups defined: $($FSContributorGroups)" -Level Info
+Write-Log -Message "File Server Admin users defined: $($FSAdminUsers)" -Level Info
+Write-Log -Message "Download URL is set to: $($DownloadUrl)" -Level Info
+Write-Log -Message "Module path is set to: $($ModulePath)" -Level Info
+Write-Log -Message "Driver letter is set to: $($DriveLetter)" -Level Info
 
 # ============================================================================
 # Download and Import Module
@@ -300,16 +550,16 @@ $ModuleName = "AZFilesHybrid"
 
 $AZFilesHybrid = (Get-Module -Name $ModuleName)
 if ($null -ne $AZFilesHybrid) {
-    Write-Host "$($ModuleName) version $($AZFilesHybrid.Version) is installed"
+    Write-Log -Message "$($ModuleName) version $($AZFilesHybrid.Version) is installed" -Level Info
     #Import AzFilesHybrid module
     ImportModule
 }
 else {
     if (!(Test-Path -Path $ModulePath)) {
-        New-Item -Path $ModulePath -ItemType Directory | Out-Null
+        $null = New-Item -Path $ModulePath -ItemType Directory
     }
     try {
-        Write-Host "Downloading $ModuleName PowerShell Module" -ForegroundColor Cyan
+        Write-Log -Message "Downloading $ModuleName PowerShell Module" -Level Info
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutFile -ErrorAction Stop
         Expand-Archive -Path $OutFile -DestinationPath $ModulePath -Force
@@ -320,7 +570,28 @@ else {
         ImportModule
     }
     catch {
-        Write-Warning "Failed to Download $ModuleName Module. Exiting"
+        Write-Log -Message "Failed to Download $ModuleName Module. Exiting" -Level Warn
+        StopIteration
+        Exit 1
+    }    
+}
+
+$ModuleName = "AZ.Storage"
+
+$AZStorage = (Get-Module -Name $ModuleName)
+if ($null -ne $AZStorage) {
+    Write-Log -Message "$($ModuleName) version $($AZStorage.Version) is installed" -Level Info
+    ImportModule
+}
+else {
+    try {
+        Install-Module -Name $ModuleName -AllowClobber -ErrorAction Stop
+        ImportModule
+    }
+    catch {
+        Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
         Exit 1
     }    
 }
@@ -329,13 +600,16 @@ else {
 # Select Azure Subscription
 # ============================================================================
 #Login with an Azure AD credential that has either storage account owner or contributer RBAC assignment
-Write-Host "Connecting to Azure" -ForegroundColor Cyan
+Write-Log -Message "Connecting to Azure" -Level Info
 try {
-    Connect-AzAccount -ErrorAction Stop
-    Select-AzSubscription -SubscriptionId $SubscriptionId -ErrorAction Stop
+    $null = Connect-AzAccount -ErrorAction Stop
+    Write-Log -Message "Connected to Azure" -Level Info
+    Write-Log -Message "Setting Subscription $($SubscriptionId)" -Level Info
+    $null = Select-AzSubscription -SubscriptionId $SubscriptionId -ErrorAction Stop
 }
 catch {
-    Write-Warning "Failed to set Azure Subscription. Exiting"
+    Write-Log -Message "Failed to set Azure Subscription. Exiting" -Level Warn
+    StopIteration
     Exit 1    
 }
 
@@ -367,6 +641,14 @@ if ($ConfigNTFSPermissions.IsPresent) {
     ConfigureNTFSPermissions
 }
 
+# ============================================================================
+# Validate Storage Account
+# ============================================================================
+if ($ValidateStorageAccount.IsPresent) {
+    ValidateStorageAccount
+}
+
 Push-Location ..
+StopIteration
 Exit 0
 #endregion
