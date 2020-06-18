@@ -284,6 +284,7 @@ function ImportModule {
     }
     catch {
         Write-Log -Message "Failed to Import $ModuleName Module. Exiting" -Level Warn
+        StopIteration
         Exit 1
     }
 }
