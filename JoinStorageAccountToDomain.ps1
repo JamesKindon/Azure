@@ -10,9 +10,9 @@
     https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-auth-active-directory-enable
 .PARAMETER JoinStorageAccountToDomain
     If set, will join the storage account to the domain
-.PARAMETER ConfigIAMRoles
+.PARAMETER ConfigureIAMRoles
     Will configure Azure IAM roles
-.PARAMETER ConfigNTFSPermissions
+.PARAMETER ConfigureNTFSPermissions
     Will configure NTFS permissions for FSLogix Containers
 .PARAMETER DebugStorageAccountDomainJoin
     Will debug join issues
@@ -29,16 +29,16 @@
 .PARAMETER IOProfile
     IO profile size for FSlogix Container Math. Default is 25 IOPS
 .EXAMPLE
-    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
 .EXAMPLE
-    JoinStorageAccountToDomain.ps1 -ConfigIAMRoles -ConfigNTFSPermissions
+    JoinStorageAccountToDomain.ps1 -ConfigureIAMRoles -ConfigureNTFSPermissions
     Will configure IAM roles and configure NTFS permissions for Containers
 .EXAMPLE
-    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json
     Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
 .EXAMPLE
-    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigIAMRoles -ConfigNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
     Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers and output basic storage account details
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
@@ -67,10 +67,10 @@ Param(
     [Switch]$JoinStorageAccountToDomain,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$ConfigIAMRoles,
+    [Switch]$ConfigureIAMRoles,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$ConfigNTFSPermissions,
+    [Switch]$ConfigureNTFSPermissions,
 
     [Parameter(Mandatory = $false)]
     [Switch]$DebugStorageAccountDomainJoin,
@@ -631,14 +631,14 @@ if ($DebugStorageAccountDomainJoin.IsPresent) {
 # ============================================================================
 # Assign Roles
 # ============================================================================
-if ($ConfigIAMRoles.IsPresent) {
+if ($ConfigureIAMRoles.IsPresent) {
     AssignIAMRoles
 }
 
 # ============================================================================
 # Set NTFS permissions for Containers
 # ============================================================================
-if ($ConfigNTFSPermissions.IsPresent) {
+if ($ConfigureNTFSPermissions.IsPresent) {
     ConfigureNTFSPermissions
 }
 
