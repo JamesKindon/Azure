@@ -7,7 +7,7 @@
     "OU": "OU=Azure FIles,DC=Domain,DC=com",
     "FSContributorGroups": [{"name":"WVD Users"},{"name":"WVD Users2"}],
     "FSAdminUsers": [{"name":"Jkindon@domain.com"},{"name":"Jkindon2@domain.com"}],
-    "DownloadUrl": "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.1.3/AzFilesHybrid.zip",
+    "DownloadUrl": "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.2/AzFilesHybrid.zip",
     "ModulePath": "C://temp//AzFilesHybrid",
     "DriveLetter": "X"
 }
