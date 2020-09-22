@@ -55,6 +55,8 @@
         - Firewall configuration
         - Private and Public Endpoint configurations
         - Large File Shares
+    Updates 23.09.2020
+    - Updated to version 0.2.2 (from 0.1.3) of the AZFilesHybrid Module https://github.com/Azure-Samples/azure-files-samples/releases/tag/v0.2.2
 #>
 
 #region Params
@@ -110,7 +112,7 @@ $DomainAccountType = "ServiceLogonAccount" #-DomainAccountType "<ComputerAccount
 $OU = "--OU=Azure FIles,DC=Domain,DC=com--" #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
 $FSContributorGroups = @("WVD Users") # Array of groups to Assign Storage File Data SMB Share Contributor
 $FSAdminUsers = @("Jkindon@domain.com") # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
-$DownloadUrl = "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.1.3/AzFilesHybrid.zip"
+$DownloadUrl = "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.2/AzFilesHybrid.zip"
 $ModulePath = "C:\temp\AzFilesHybrid" #Output path for modules
 $DriveLetter = "X" # Letter used to map drive and set ACLs
 #endregion
