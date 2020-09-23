@@ -57,6 +57,8 @@
         - Large File Shares
     Updates 23.09.2020
     - Updated to version 0.2.2 (from 0.1.3) of the AZFilesHybrid Module https://github.com/Azure-Samples/azure-files-samples/releases/tag/v0.2.2
+    - Updated ImportModule Function
+    - Migrated ServiceLogonAccount logic to ComputerAccount due to incoming AES changes
 #>
 
 #region Params
@@ -108,7 +110,7 @@ $SubscriptionId = "--SubscriptionID--" #subscription Id
 $ResourceGroupName = "--Resource Group--" #resource group name
 $StorageAccountName = "--storage account name--" #storage account name
 $ShareName = "--fslogix--" #storage account share name
-$DomainAccountType = "ServiceLogonAccount" #-DomainAccountType "<ComputerAccount|ServiceLogonAccount>"
+$DomainAccountType = "ComputerAccount" #-DomainAccountType "<ComputerAccount|ServiceLogonAccount>"
 $OU = "--OU=Azure FIles,DC=Domain,DC=com--" #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
 $FSContributorGroups = @("WVD Users") # Array of groups to Assign Storage File Data SMB Share Contributor
 $FSAdminUsers = @("Jkindon@domain.com") # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
@@ -280,6 +282,10 @@ function ConfigureNTFSPermissions {
 }
 
 function ImportModule {
+    param (
+        [Parameter(Mandatory = $True)]
+        [String]$ModuleName
+    )
     Write-Log -Message "Importing $ModuleName Module" -Level Info
     try {
         Import-Module -Name $ModuleName -Force -ErrorAction Stop
@@ -555,8 +561,8 @@ $AZFilesHybrid = (Get-Module -Name $ModuleName)
 if ($null -ne $AZFilesHybrid) {
     Write-Log -Message "$($ModuleName) version $($AZFilesHybrid.Version) is installed" -Level Info
     #Import AzFilesHybrid module
-    ImportModule
-}
+    ImportModule -ModuleName AZFilesHybrid
+
 else {
     if (!(Test-Path -Path $ModulePath)) {
         $null = New-Item -Path $ModulePath -ItemType Directory
@@ -570,7 +576,7 @@ else {
         Push-Location $ModulePath
         .\CopyToPSPath.ps1
         #Import AzFilesHybrid module
-        ImportModule
+        ImportModule -ModuleName AZFilesHybrid
     }
     catch {
         Write-Log -Message "Failed to Download $ModuleName Module. Exiting" -Level Warn
