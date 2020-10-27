@@ -657,7 +657,7 @@ if ($ValidateStorageAccount.IsPresent) {
     ValidateStorageAccount
 }
 
-Push-Location ..
+Push-Location -Path $PSScriptRoot
 StopIteration
 Exit 0
 #endregion
