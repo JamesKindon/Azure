@@ -562,7 +562,7 @@ if ($null -ne $AZFilesHybrid) {
     Write-Log -Message "$($ModuleName) version $($AZFilesHybrid.Version) is installed" -Level Info
     #Import AzFilesHybrid module
     ImportModule -ModuleName AZFilesHybrid
-
+}
 else {
     if (!(Test-Path -Path $ModulePath)) {
         $null = New-Item -Path $ModulePath -ItemType Directory
