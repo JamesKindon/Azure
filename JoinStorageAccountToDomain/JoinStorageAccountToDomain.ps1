@@ -585,17 +585,15 @@ else {
     }    
 }
 
-$ModuleName = "AZ.Storage"
-
 $AZStorage = (Get-Module -Name $ModuleName)
 if ($null -ne $AZStorage) {
     Write-Log -Message "$($ModuleName) version $($AZStorage.Version) is installed" -Level Info
-    ImportModule
+    ImportModule -ModuleName AZ.Storage
 }
 else {
     try {
         Install-Module -Name $ModuleName -AllowClobber -ErrorAction Stop
-        ImportModule
+        ImportModule -ModuleName AZ.Storage
     }
     catch {
         Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
