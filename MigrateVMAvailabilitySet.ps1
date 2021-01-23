@@ -200,7 +200,7 @@ if ($BackupRemovalConfirmation -eq "Y") {
     if (-Not $AvailabilitySet) {
         try {
             Write-Log -Message "Availability Set $($AvailabilitySetName) does not exist. Attempting to create" -level Info
-            $AvailabilitySet = New-AzAvailabilitySet -Location $SourceVM.Location -Name $AvailabilitySetName -ResourceGroupName $ResourceGroup -PlatformFaultDomainCount 2 -PlatformUpdateDomainCount 2 -Sku Aligned -ErrorAction Stop
+            $AvailabilitySet = New-AzAvailabilitySet -Location $SourceVM.Location -Name $AvailabilitySetName -ResourceGroupName $ResourceGroup -PlatformFaultDomainCount 2 -PlatformUpdateDomainCount 5 -Sku Aligned -ErrorAction Stop
             Write-Log -Message "Availability Set $($AvailabilitySetName) created successfully"
         }
         catch {
