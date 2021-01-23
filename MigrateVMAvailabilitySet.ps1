@@ -233,8 +233,8 @@ if ($BackupRemovalConfirmation -eq "Y") {
     $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows
 
     # Add Data Disks
-    Write-Log -Message "Setting Data Disk configuration for replacement VM $($VMName)" -Level Info
-    foreach ($disk in $SourceVM.StorageProfile.DataDisks) { 
+    foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
+        Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info 
         $null = Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach
     }
 
