@@ -61,6 +61,8 @@
     - Migrated ServiceLogonAccount logic to ComputerAccount due to incoming AES changes
     Updated 11.03.2021
     - Added Check for minimum PowerShellGet version
+    - Added AzFilesHybrid Module 2.2.3
+    - Added 15 Character limit check after being bitten too many times (thanks Dale!)
 #>
 
 #region Params
