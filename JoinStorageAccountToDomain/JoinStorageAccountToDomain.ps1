@@ -504,6 +504,18 @@ function ValidateStorageAccount {
         Write-Log -Message "There are no private endpoints configured on the Storage Account: $($StorageAccountName)" -Level Info
     }
 }
+
+function ValidateStorageAccountNameCharacterCount {
+    if ($StorageAccountName.length -gt 15 ) {
+        Write-Log -Message "The Storageaccount name exceeds 15 characters ($($StorageAccountName.length)) and cannot be joined to the Domain. Script is exiting" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
+        Exit 1
+    }
+    else {
+        Write-Log -message "Storageaccount name is less than 15 characters. Continuing" -Level Info
+    }
+}
 #endregion
 
 #region execute
@@ -553,6 +565,11 @@ Write-Log -Message "File Server Admin users defined: $($FSAdminUsers)" -Level In
 Write-Log -Message "Download URL is set to: $($DownloadUrl)" -Level Info
 Write-Log -Message "Module path is set to: $($ModulePath)" -Level Info
 Write-Log -Message "Driver letter is set to: $($DriveLetter)" -Level Info
+
+# ============================================================================
+# Validate Storage Account Name Count (looking for 15 characters or less)
+# ============================================================================
+ValidateStorageAccountNameCharacterCount
 
 # ============================================================================
 # Download and Import Module
