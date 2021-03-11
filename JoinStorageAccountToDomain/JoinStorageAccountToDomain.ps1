@@ -405,6 +405,7 @@ function StartIteration {
 function StopIteration {
     Stop-Stopwatch
     Write-Log -Message "--------Finished Iteration--------" -Level Info
+    Push-Location -Path $PSScriptRoot
 }
 
 function ValidateStorageAccount {
@@ -585,6 +586,8 @@ else {
     }    
 }
 
+$ModuleName = "AZ.Storage"
+
 $AZStorage = (Get-Module -Name $ModuleName)
 if ($null -ne $AZStorage) {
     Write-Log -Message "$($ModuleName) version $($AZStorage.Version) is installed" -Level Info
@@ -592,8 +595,42 @@ if ($null -ne $AZStorage) {
 }
 else {
     try {
+        Write-Log -Message "$($ModuleName) is not installed. Attempting Install" -Level Info
         Install-Module -Name $ModuleName -AllowClobber -ErrorAction Stop
         ImportModule -ModuleName AZ.Storage
+    }
+    catch {
+        Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
+        Exit 1
+    }    
+}
+
+$ModuleName = "PowerShellGet"
+Import-Module -Name $ModuleName -Force
+$PowerShellGet = (Get-Module -Name $ModuleName)
+if ($null -ne $PowerShellGet) {
+    Write-Log -Message "$($ModuleName) version $($PowerShellGet.Version) is installed" -Level Info
+    if ($PowerShellGet.Version -lt '1.6.0') {
+        Write-Log "$($PowerShellGet.Version) installed. Forcing an update"
+        try {
+            Remove-Module PackageManagement -Force
+            Install-Module -Name $ModuleName -AllowClobber -force -SkipPublisherCheck -ErrorAction Stop
+            ImportModule -ModuleName PowerShellGet
+        }
+        catch {
+            Write-Log -Message $_ -Level Warn
+            StopIteration
+            Exit 1    
+        }
+    }
+}
+else {
+    try {
+        Write-Log -Message "$($ModuleName) is not installed. Attempting Install" -Level Info
+        Install-Module -Name $ModuleName -AllowClobber -force -ErrorAction Stop
+        ImportModule -ModuleName PowerShellGet
     }
     catch {
         Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
@@ -655,7 +692,6 @@ if ($ValidateStorageAccount.IsPresent) {
     ValidateStorageAccount
 }
 
-Push-Location -Path $PSScriptRoot
 StopIteration
 Exit 0
 #endregion
