@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Moves a selected VM and it's disks to a target availability zone
+    Moves a selected VM and its disks to a target availability zone
 .DESCRIPTION
-    Moves a selected VM and it's disks to a target availability zone
+    Moves a selected VM and its disks to a target availability zone
 .PARAMETER LogPath
     Logpath output for all operations
 .PARAMETER LogRollover
