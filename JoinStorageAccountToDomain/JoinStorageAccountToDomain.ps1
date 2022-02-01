@@ -61,8 +61,12 @@
     - Migrated ServiceLogonAccount logic to ComputerAccount due to incoming AES changes
     Updated 11.03.2021
     - Added Check for minimum PowerShellGet version
-    - Added AzFilesHybrid Module 2.2.3
+    - Added AzFilesHybrid Module 0.2.3
     - Added 15 Character limit check after being bitten too many times (thanks Dale!)
+    Updated 01.02.2022
+    - Updated to latest AZ Files Module 0.2.4 (https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.4/AzFilesHybrid.zip)
+    - Added Default Permission Switch, Defaults to StorageFileDataSmbShareContributor
+    - Fixed JSON Template
 #>
 
 #region Params
@@ -99,7 +103,10 @@ Param(
     [Switch]$ValidateStorageAccount,
 
     [Parameter(Mandatory = $false)]
-    [int]$IOProfile = 25 # IO profile for FSLogix Container
+    [int]$IOProfile = 25, # IO profile for FSLogix Container
+
+    [Parameter(Mandatory = $false)]
+    [Switch]$SetDefaultPermission
 )
 #endregion
 
@@ -118,7 +125,7 @@ $DomainAccountType = "ComputerAccount" #-DomainAccountType "<ComputerAccount|Ser
 $OU = "--OU=Azure FIles,DC=Domain,DC=com--" #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
 $FSContributorGroups = @("WVD Users") # Array of groups to Assign Storage File Data SMB Share Contributor
 $FSAdminUsers = @("Jkindon@domain.com") # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
-$DownloadUrl = "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.3/AzFilesHybrid.zip"
+$DownloadUrl = "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.4/AzFilesHybrid.zip"
 $ModulePath = "C:\temp\AzFilesHybrid" #Output path for modules
 $DriveLetter = "X" # Letter used to map drive and set ACLs
 #endregion
@@ -518,6 +525,12 @@ function ValidateStorageAccountNameCharacterCount {
         Write-Log -message "Storageaccount name is less than 15 characters. Continuing" -Level Info
     }
 }
+
+function SetDefaultPermission {
+    $defaultPermission = "StorageFileDataSmbShareContributor" # Set the default permission of your choice ("None|StorageFileDataSmbShareContributor|StorageFileDataSmbShareReader|StorageFileDataSmbShareElevatedContributor")
+    $account = Set-AzStorageAccount -ResourceGroupName $ResourceGroupName -AccountName $StorageAccountName -DefaultSharePermission $defaultPermission
+    $account.AzureFilesIdentityBasedAuth
+}
 #endregion
 
 #region execute
@@ -711,6 +724,13 @@ if ($ConfigureNTFSPermissions.IsPresent) {
 # ============================================================================
 if ($ValidateStorageAccount.IsPresent) {
     ValidateStorageAccount
+}
+
+# ============================================================================
+# Set Default Permission for Share Access
+# ============================================================================
+if ($SetDefaultPermission.IsPresent) {
+    SetDefaultPermission
 }
 
 StopIteration
