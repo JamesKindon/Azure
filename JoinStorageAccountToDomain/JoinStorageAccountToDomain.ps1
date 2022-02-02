@@ -67,6 +67,10 @@
     - Updated to latest AZ Files Module 0.2.4 (https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.4/AzFilesHybrid.zip)
     - Added Default Permission Switch, Defaults to StorageFileDataSmbShareContributor
     - Fixed JSON Template
+    Updated 02.02.2022
+    - Updated to use new commandlets
+    - Fixed Module sections and removed functions (too lazy to fix)
+    - Fixed extracted output path (due to change in AzFilesHybrid download)
 #>
 
 #region Params
@@ -148,7 +152,7 @@ function JoinStorageAccountToDomain {
     }
 
     try {
-        Join-AzStorageAccountForAuth @JoinParams
+        Join-AzStorageAccount @JoinParams
         Write-Log -Message "Successfully Joined Domain" -Level Info
     }
     catch {
@@ -290,22 +294,6 @@ function ConfigureNTFSPermissions {
     
     Write-Log -Message "Removing mapped drive" -Level Info
     Remove-SmbMapping -LocalPath $DriveLetter -Force
-}
-
-function ImportModule {
-    param (
-        [Parameter(Mandatory = $True)]
-        [String]$ModuleName
-    )
-    Write-Log -Message "Importing $ModuleName Module" -Level Info
-    try {
-        Import-Module -Name $ModuleName -Force -ErrorAction Stop
-    }
-    catch {
-        Write-Log -Message "Failed to Import $ModuleName Module. Exiting" -Level Warn
-        StopIteration
-        Exit 1
-    }
 }
 
 function Write-Log {
@@ -590,68 +578,69 @@ ValidateStorageAccountNameCharacterCount
 # Download and Import Module
 # ============================================================================
 $OutFile = $ModulePath + "\" + ($DownloadUrl | Split-Path -Leaf)
-$ModuleName = "AZFilesHybrid"
 
-$AZFilesHybrid = (Get-Module -Name $ModuleName)
+$AZFilesHybrid = (Get-Module -Name "AZFilesHybrid")
 if ($null -ne $AZFilesHybrid) {
-    Write-Log -Message "$($ModuleName) version $($AZFilesHybrid.Version) is installed" -Level Info
+    Write-Log -Message "AZFilesHybrid version $($AZFilesHybrid.Version) is installed" -Level Info
     #Import AzFilesHybrid module
-    ImportModule -ModuleName AZFilesHybrid
+    Import-Module -Name "AZFilesHybrid" -Force
 }
 else {
     if (!(Test-Path -Path $ModulePath)) {
         $null = New-Item -Path $ModulePath -ItemType Directory
     }
     try {
-        Write-Log -Message "Downloading $ModuleName PowerShell Module" -Level Info
+        Write-Log -Message "Downloading AZFilesHybrid PowerShell Module" -Level Info
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutFile -ErrorAction Stop
         Expand-Archive -Path $OutFile -DestinationPath $ModulePath -Force
         # Navigate to where AzFilesHybrid is unzipped and stored and run to copy the files into your path
-        Push-Location $ModulePath
+        Push-Location $ModulePath\AZFilesHybrid
         .\CopyToPSPath.ps1
         #Import AzFilesHybrid module
-        ImportModule -ModuleName AZFilesHybrid
+        Import-Module -Name "AZFilesHybrid" -Force -ErrorAction Stop
     }
     catch {
-        Write-Log -Message "Failed to Download $ModuleName Module. Exiting" -Level Warn
+        Write-Log -Message "Failed to Download AzFilesHybrid Module. Exiting" -Level Warn
         StopIteration
         Exit 1
     }    
 }
 
-$ModuleName = "AZ.Storage"
 
-$AZStorage = (Get-Module -Name $ModuleName)
+$AZStorage = (Get-Module -Name "AZ.Storage")
 if ($null -ne $AZStorage) {
-    Write-Log -Message "$($ModuleName) version $($AZStorage.Version) is installed" -Level Info
-    ImportModule -ModuleName AZ.Storage
+    Write-Log -Message "AZ.Storage version $($AZStorage.Version) is installed" -Level Info
+    Import-Module -Name "AZ.Storage" -Force
 }
 else {
     try {
-        Write-Log -Message "$($ModuleName) is not installed. Attempting Install" -Level Info
-        Install-Module -Name $ModuleName -AllowClobber -ErrorAction Stop
-        ImportModule -ModuleName AZ.Storage
+        Write-Log -Message "AZ.Storage is not installed. Attempting Install" -Level Info
+        Install-Module -Name "AZ.Storage"-AllowClobber -ErrorAction Stop
+        Import-Module -Name "AZ.Storage" -Force
     }
     catch {
-        Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
+        Write-Log -Message "Failed to Import Module AZ.Storage. Exiting" -Level Warn
         Write-Log -Message $_ -Level Warn
         StopIteration
         Exit 1
     }    
 }
 
-$ModuleName = "PowerShellGet"
-Import-Module -Name $ModuleName -Force
-$PowerShellGet = (Get-Module -Name $ModuleName)
+Import-Module -Name "PowerShellGet" -Force
+$PowerShellGet = (Get-Module -Name "PowerShellGet")
 if ($null -ne $PowerShellGet) {
-    Write-Log -Message "$($ModuleName) version $($PowerShellGet.Version) is installed" -Level Info
-    if ($PowerShellGet.Version -lt '1.6.0') {
+    Write-Log -Message "PowerShellGet version $($PowerShellGet.Version) is installed" -Level Info
+    if ($PowerShellGet.Version -gt "1.6.0") {
+    Write-Log -Message "Importing Module: PowerShellGet" -Level Info
+            Import-Module -Name "PowerShellGet" -Force
+        }
+    else {
         Write-Log "$($PowerShellGet.Version) installed. Forcing an update"
         try {
             Remove-Module PackageManagement -Force
-            Install-Module -Name $ModuleName -AllowClobber -force -SkipPublisherCheck -ErrorAction Stop
-            ImportModule -ModuleName PowerShellGet
+            Install-Module -Name "PowerShellGet" -AllowClobber -force -SkipPublisherCheck -ErrorAction Stop
+            Import-Module -Name "PowerShellGet" -Force
         }
         catch {
             Write-Log -Message $_ -Level Warn
@@ -662,12 +651,12 @@ if ($null -ne $PowerShellGet) {
 }
 else {
     try {
-        Write-Log -Message "$($ModuleName) is not installed. Attempting Install" -Level Info
-        Install-Module -Name $ModuleName -AllowClobber -force -ErrorAction Stop
-        ImportModule -ModuleName PowerShellGet
+        Write-Log -Message "PowerShellGet is not installed. Attempting Install" -Level Info
+        Install-Module -Name "PowerShellGet" -AllowClobber -force -ErrorAction Stop
+        Import-Module -Name "PowerShellGet" -Force -ErrorAction Stop
     }
     catch {
-        Write-Log -Message "Failed to Import Module $($ModuleName). Exiting" -Level Warn
+        Write-Log -Message "Failed to Import Module PowerShellGet. Exiting" -Level Warn
         Write-Log -Message $_ -Level Warn
         StopIteration
         Exit 1
