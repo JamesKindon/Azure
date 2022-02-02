@@ -516,6 +516,7 @@ function ValidateStorageAccountNameCharacterCount {
 
 function SetDefaultPermission {
     $defaultPermission = "StorageFileDataSmbShareContributor" # Set the default permission of your choice ("None|StorageFileDataSmbShareContributor|StorageFileDataSmbShareReader|StorageFileDataSmbShareElevatedContributor")
+    Write-Log -Message "Setting default permission to: $(defaultPermission) " -Level Info
     $account = Set-AzStorageAccount -ResourceGroupName $ResourceGroupName -AccountName $StorageAccountName -DefaultSharePermission $defaultPermission
     $account.AzureFilesIdentityBasedAuth
 }
