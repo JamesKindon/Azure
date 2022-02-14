@@ -243,6 +243,54 @@ catch {
 }
 #endregion
 
+#region Machine power and snapshots
+#----------------------------------------------------------------------------
+# Check Machine
+#----------------------------------------------------------------------------
+Write-Log -Message "Checking source VM: $($VMName) power state" -Level Info
+if (((Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Status).Statuses[1].DisplayStatus) -eq "VM running") {
+    Write-Log -Message "VM: $($VMName) is running, powering off" -Level Info
+    try {
+        Stop-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -force -ErrorAction Stop | Out-Null
+        Write-Log -Message "Success: stopped VM: $($VMName)" -Level Info
+    }
+    catch {
+        Write-Log -Message "Failed to power off VM: $($VMName). Exit script" -Level Warn
+        Write-Log -Message $_ -Level Warn
+        StopIteration
+        Exit 1
+    }
+}
+else {
+    Write-Log -Message "VM: $($VMName) is in state $((Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Status).Statuses[1].DisplayStatus). Proceeding"
+}
+
+#----------------------------------------------------------------------------
+# Snapshot
+#----------------------------------------------------------------------------
+if ($TakeSnapshot.IsPresent) {
+    Write-Log -Message "TakeSnapshot has been selected. A snapshot of the OS Disk will be created, and not cleaned up" -Level Info
+    try {
+        Write-Log -message "Get VM: $($VMName) details for snapshot"
+        $VM = Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -ErrorAction Stop
+        Write-Log -Message "Create Snapshot config" -Level Info
+        $Snap = New-AzSnapshotConfig -SourceUri ($VM.StorageProfile.OsDisk.ManagedDisk.Id) -Location $VM.Location -CreateOption "Copy" -ErrorAction Stop
+        Write-Log -Message "Attempting to create snapshot" -Level Info
+        $NewSnap = New-AzSnapshot -Snapshot $Snap -SnapshotName ("snap-" + $VM.StorageProfile.OsDisk.Name) -ResourceGroupName $ResourceGroup -ErrorAction Stop
+        Write-Log -Message "Success: Snapshot created: $($NewSnap.Name)"
+    }
+    catch {
+        Write-Log -Message "Failed to create snapshot. Exit script" -Level Warn
+        Write-Log -Message $_
+        StopIteration
+        Exit 1
+    }
+}
+else {
+    Write-Log -message "Takesnapshot is not present, no snapshot will be created" -Level Warn
+}
+#endregion
+
 #region PartitionOSDisk
 #----------------------------------------------------------------------------
 # Partition Disk within guest sourced from Nerdio Library 
@@ -292,54 +340,6 @@ else {
         StopIteration
         Exit 1
     }
-}
-#endregion
-
-#region Machine power and snapshots
-#----------------------------------------------------------------------------
-# Check Machine
-#----------------------------------------------------------------------------
-Write-Log -Message "Checking source VM: $($VMName) power state" -Level Info
-if (((Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Status).Statuses[1].DisplayStatus) -eq "VM running") {
-    Write-Log -Message "VM: $($VMName) is running, powering off" -Level Info
-    try {
-        Stop-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -force -ErrorAction Stop | Out-Null
-        Write-Log -Message "Success: stopped VM: $($VMName)" -Level Info
-    }
-    catch {
-        Write-Log -Message "Failed to power off VM: $($VMName). Exit script" -Level Warn
-        Write-Log -Message $_ -Level Warn
-        StopIteration
-        Exit 1
-    }
-}
-else {
-    Write-Log -Message "VM: $($VMName) is in state $((Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -Status).Statuses[1].DisplayStatus). Proceeding"
-}
-
-#----------------------------------------------------------------------------
-# Snapshot
-#----------------------------------------------------------------------------
-if ($TakeSnapshot.IsPresent) {
-    Write-Log -Message "TakeSnapshot has been selected. A snapshot of the OS Disk will be created, and not cleaned up" -Level Info
-    try {
-        Write-Log -message "Get VM: $($VMName) details for snapshot"
-        $VM = Get-AzVM -Name $VMName -ResourceGroupName $ResourceGroup -ErrorAction Stop
-        Write-Log -Message "Create Snapshot config" -Level Info
-        $Snap = New-AzSnapshotConfig -SourceUri ($VM.StorageProfile.OsDisk.ManagedDisk.Id) -Location $VM.Location -CreateOption "Copy" -ErrorAction Stop
-        Write-Log -Message "Attempting to create snapshot" -Level Info
-        $NewSnap = New-AzSnapshot -Snapshot $Snap -SnapshotName ("snap-" + $VM.StorageProfile.OsDisk.Name) -ResourceGroupName $ResourceGroup -ErrorAction Stop
-        Write-Log -Message "Success: Snapshot created: $($NewSnap.Name)"
-    }
-    catch {
-        Write-Log -Message "Failed to create snapshot. Exit script" -Level Warn
-        Write-Log -Message $_
-        StopIteration
-        Exit 1
-    }
-}
-else {
-    Write-Log -message "Takesnapshot is not present, no snapshot will be created" -Level Warn
 }
 #endregion
 
