@@ -26,8 +26,10 @@
     Number of days before logfiles are rolled over. Default is 5
 .PARAMETER ValidateStorageAccount
     Will validate and output basic Storage Account Settings
-.PARAMETER IOProfile
-    IO profile size for FSlogix Container Math. Default is 25 IOPS
+.PARAMETER SetDefaultPermission
+    Sets the default permission on the file share for authenticated users - no more requirement to specify a group https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-assign-permissions?tabs=azure-powershell#share-level-permissions-for-all-authenticated-identities
+.PARAMETER EnableSMBMultiChannel
+    Enables SMB MultiChannel on the storage account https://docs.microsoft.com/en-us/azure/storage/files/files-smb-protocol?tabs=azure-powershell#smb-multichannel
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
@@ -43,6 +45,9 @@
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount
     Will output basic storage account details
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount -SetDefaultPermission -EnableSMBMultiChannel
+    Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles including the default and configure NTFS permissions for Containers and output basic storage account details. Will also enable SMB Multichannel
 .NOTES
     Updates 17.06.2020
     - You can use a JSON import file (good) or alter variables within this script (not so good)
@@ -71,6 +76,10 @@
     - Updated to use new commandlets
     - Fixed Module sections and removed functions (too lazy to fix)
     - Fixed extracted output path (due to change in AzFilesHybrid download)
+    Updated 19.02.2022
+    - Added SMB MultiChannel Switch
+    - Removed Quota assessment given changes in Premium File Share IOPS
+    - Added output for Storage File Services Properties
 #>
 
 #region Params
@@ -107,10 +116,10 @@ Param(
     [Switch]$ValidateStorageAccount,
 
     [Parameter(Mandatory = $false)]
-    [int]$IOProfile = 25, # IO profile for FSLogix Container
+    [Switch]$SetDefaultPermission,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$SetDefaultPermission
+    [Switch]$EnableSMBMultiChannel
 )
 #endregion
 
@@ -409,7 +418,6 @@ function StopIteration {
 
 function ValidateStorageAccount {
     $StorageAcccount = Get-AzStorageAccount -Name $StorageAccountName -ResourceGroupName $ResourceGroupName
-    Write-Log -Message "Using FSLogix IO Profile of $($IOProfile)" -Level Info
 
     if ($StorageAcccount.Sku.Tier -eq "Premium") {
         Write-Log -Message "Storage Account $($StorageAccountName) is a $($StorageAcccount.Sku.Tier) Account" -Level Info
@@ -425,9 +433,6 @@ function ValidateStorageAccount {
         }
 
         Write-Log -Message "The share $($ShareName) has a quota (size) of $($Share.Quota) GiB" -Level Info
-        Write-Log -Message "This will result in a provisioned IO/s capability of $($Share.Quota) IO/s" -Level Info
-        Write-Log -Message "The burst IO/s capacity will be $($Share.Quota * 3) IO/s" -Level Info
-        Write-Log -Message "With an estimated IO allowance of $($IOProfile) IOPS for FSLogix Containers, the estimated number of containers in a steady state operation is $($Share.Quota / $IOProfile )" -Level Info
     }
     else {
         Write-Log -Message "Storage Account $($StorageAccountName) is a $($StorageAcccount.Sku.Tier) Account" -Level Info
@@ -519,6 +524,24 @@ function SetDefaultPermission {
     Write-Log -Message "Setting default permission to: $($defaultPermission) " -Level Info
     $account = Set-AzStorageAccount -ResourceGroupName $ResourceGroupName -AccountName $StorageAccountName -DefaultSharePermission $defaultPermission | Out-null
     #$account.AzureFilesIdentityBasedAuth
+}
+
+function EnableSMBMultiChannel {
+     Write-Log -Message "Enabling SMB MultiChannel" -Level Info
+     if (((Get-AzStorageFileServiceProperty -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName).ProtocolSettings.Smb.Multichannel.Enabled) -ne "True") {
+         try {
+            Write-Log -Message "SMB MultiChannel is not enabled. Enabling" -Level Info
+            Update-AzStorageFileServiceProperty -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName -EnableSmbMultichannel $True -ErrorAction Stop
+            Write-Log -Message "SMB MultiChannel enabled" -Level Info
+         }
+         catch {
+            Write-Log -Message "SMB MultiChannel enablement failed. Exiting" -Level Warn
+            Write-Log -Message $_ -Level Warn
+         }
+     }
+     else {
+        Write-Log -Message "SMB MultiChannel is already enabled" -Level Info
+     }
 }
 #endregion
 
@@ -721,6 +744,25 @@ if ($ValidateStorageAccount.IsPresent) {
 # ============================================================================
 if ($SetDefaultPermission.IsPresent) {
     SetDefaultPermission
+}
+
+# ============================================================================
+# Enable SMTP MultiChannel
+# ============================================================================
+if ($EnableSMBMultiChannel.IsPresent) {
+    EnableSMBMultiChannel
+}
+
+# ============================================================================
+# Output File Service security basics for the storage account
+# ============================================================================
+Write-Log -Message "Storage Account properties are outlined below. Please review and update as per requirements" -Level Info
+try {
+    Get-AzStorageFileServiceProperty -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName -ErrorAction Stop
+}
+catch {
+    Write-Log -Message "Failed to get storage account file services properties" -Level Warn
+    Write-Log -Message $_ -Level Warn
 }
 
 StopIteration
