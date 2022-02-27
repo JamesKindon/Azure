@@ -510,7 +510,6 @@ function ValidateStorageAccount {
 function ValidateStorageAccountNameCharacterCount {
     if ($StorageAccountName.length -gt 15 ) {
         Write-Log -Message "The Storageaccount name exceeds 15 characters ($($StorageAccountName.length)) and cannot be joined to the Domain. Script is exiting" -Level Warn
-        Write-Log -Message $_ -Level Warn
         StopIteration
         Exit 1
     }
