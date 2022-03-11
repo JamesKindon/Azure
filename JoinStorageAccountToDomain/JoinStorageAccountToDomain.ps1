@@ -732,13 +732,6 @@ if ($ConfigureNTFSPermissions.IsPresent) {
 }
 
 # ============================================================================
-# Validate Storage Account
-# ============================================================================
-if ($ValidateStorageAccount.IsPresent) {
-    ValidateStorageAccount
-}
-
-# ============================================================================
 # Set Default Permission for Share Access
 # ============================================================================
 if ($SetDefaultPermission.IsPresent) {
@@ -750,6 +743,13 @@ if ($SetDefaultPermission.IsPresent) {
 # ============================================================================
 if ($EnableSMBMultiChannel.IsPresent) {
     EnableSMBMultiChannel
+}
+
+# ============================================================================
+# Validate Storage Account
+# ============================================================================
+if ($ValidateStorageAccount.IsPresent) {
+    ValidateStorageAccount
 }
 
 # ============================================================================
