@@ -444,6 +444,7 @@ function ValidateStorageAccount {
     $AllowedNetworks = $StorageAcccount.NetworkRuleSet.VirtualNetworkRules.VirtualNetworkResourceId #allowed vnets
     $AllowedIPs = $StorageAcccount.NetworkRuleSet.IpRules #inbound rules
     $LargeFileShares = $StorageAcccount.LargeFileSharesState #Large file shares are enabled
+    $DefaultPermissionSet = $StorageAcccount.AzureFilesIdentityBasedAuth #Default permission configuration
 
     #Default Security Stance
     if ($DefaultAction -eq "Deny") {
@@ -471,6 +472,14 @@ function ValidateStorageAccount {
     else {
         Write-Log -Message "Large File shares are not enabled on the Storage Account: $($StorageAccountName)" -Level Info
         Write-Log -Message "A Standard Storage Account without Large File Shares enabled has a maximum IO capability of 1,000 IOPS" -Level Info
+    }
+
+    # Default Permissions
+    if ($null -eq $DefaultPermissionSet) {
+        Write-Log -Message "Default file share permissions are not enabled on the Storage Account: $($StorageAccountName)" -Level Info
+    }
+    else {
+        Write-Log -Message "Default file share permissions are set to: DefaultPermissionSet on Storage Account: $($StorageAccountName)" -Level Info
     }
 
     # Network Configurations - Firewall
