@@ -15,6 +15,8 @@
     Sets the Azure Location
 .PARAMETER Zone
     Sets the desired Availability Zone
+.PARAMETER OSType
+    Specifies either Windows or Linux OS type. Defaults to Windows
 .PARAMETER CleanupSnapshots
     Cleans up Snapshots after migration (deletes!)
 .PARAMETER CleanupSourceDisks
@@ -49,7 +51,12 @@ Param(
     [string]$Location = "", # Azure Location
 
     [Parameter(Mandatory = $True)]
+    [ValidateSet("1","2","3")]
     [string]$Zone = "", # Target Zone
+
+    [Parameter(Mandatory = $False)]
+    [ValidateSet("Windows","Linux")]
+    [String]$OSType = "Windows", #Windows or Linux
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanupSnapshots, # Cleanup Snapshots
@@ -307,8 +314,13 @@ try {
 
     # Add the pre-created OS disk 
     Write-Log -Message "Adding OS Disk $($OSdisk.Name) to VM config: $($originalVM.Name)" -Level Info
-    Set-AzVMOSDisk -VM $newVM -CreateOption Attach -ManagedDiskId $OSdisk.Id -Name $OSdisk.Name -Windows -ErrorAction Stop | Out-Null
-
+    if ($OSType -eq "Windows") {
+        Set-AzVMOSDisk -VM $newVM -CreateOption Attach -ManagedDiskId $OSdisk.Id -Name $OSdisk.Name -Windows -ErrorAction Stop | Out-Null
+    }
+    if ($OSType -eq "Linux") {
+        Set-AzVMOSDisk -VM $newVM -CreateOption Attach -ManagedDiskId $OSdisk.Id -Name $OSdisk.Name -Linux -ErrorAction Stop | Out-Null
+    }
+    
     if (($originalVM.StorageProfile.DataDisks).Count -ne 0) {
         # Add the pre-created data disks
         foreach ($disk in $originalVM.StorageProfile.DataDisks) { 
