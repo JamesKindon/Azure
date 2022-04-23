@@ -14,6 +14,8 @@
     Name of the target VM
 .PARAMETER AvailabilitySetName
     Name of the target Availability Set
+.PARAMETER OSType
+    Specifies either Windows or Linux OS type. Defaults to Windows
 .EXAMPLE
     .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO
 #>
@@ -36,7 +38,11 @@ Param(
     [string]$VMName, 
 
     [Parameter(Mandatory = $True)]
-    [string]$AvailabilitySetName
+    [string]$AvailabilitySetName,
+
+    [Parameter(Mandatory = $False)]
+    [ValidateSet("Windows","Linux")]
+    [String]$OSType = "Windows" # Windows or Linux
 
 )
 #endregion
@@ -228,9 +234,14 @@ if ($BackupRemovalConfirmation -eq "Y") {
     Write-Log -Message "Creating new configuration for replacement VM $($VMName)" -Level Info
     $NewVM = New-AzVMConfig -VMName $SourceVM.Name -VMSize $SourceVM.HardwareProfile.VmSize -AvailabilitySetId $AvailabilitySet.Id
 
-    # For a Linux VM, change the last parameter from -Windows to -Linux
+    # Handling Datadisks
     Write-Log -Message "Setting Data Disk configuration for replacement VM $($VMName)" -Level Info
-    $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows
+    if ($OSType -eq "Windows") {
+        $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows
+    }
+    if ($OSType -eq "Linux") {
+        $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux
+    }
 
     # Add Data Disks
     foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
