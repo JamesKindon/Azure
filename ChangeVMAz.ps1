@@ -21,10 +21,15 @@
     Cleans up Snapshots after migration (deletes!)
 .PARAMETER CleanupSourceDisks
     Cleans up source disks after migration (deletes!)
-
+.PARAMETER IsADC
+    Sets Citrix ADC mode - will obtain plan, product, and publisher information for the new machines
+    WARNING: You MUST have the supporting LB and IPs at Standard SKU. Basic is NOT supported
 .EXAMPLE
   .\ChangeVMAz.ps1 -subscriptionId "89745-888-9978" -ResourceGroup "RG-AE-TEST" -vmName "MyVM" -Location "australiaeast" -Zone 1 -CleanupSnapshots -CleanupSourceDisks 
   Moves the desired VM to AZ1 and cleans up snapshots and source disks. Outputs to C:\Logs\ZoneMigrate_VMName.log
+.EXAMPLE
+  .\ChangeVMAz.ps1 -subscriptionId "89745-888-9978" -ResourceGroup "RG-AE-TEST" -vmName "MyVM" -Location "australiaeast" -Zone 1 -CleanupSnapshots -CleanupSourceDisks -OSType Linux -IsADC
+  Moves a Citrix ADC VM to AZ1 and cleans up snapshots and source disks. Outputs to C:\Logs\ZoneMigrate_VMName.log
 #>
 
 #region Params
@@ -56,13 +61,16 @@ Param(
 
     [Parameter(Mandatory = $False)]
     [ValidateSet("Windows","Linux")]
-    [String]$OSType = "Windows", #Windows or Linux
+    [String]$OSType = "Windows", # Windows or Linux
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanupSnapshots, # Cleanup Snapshots
 
     [Parameter(Mandatory = $false)]
-    [switch]$CleanupSourceDisks # Cleanup Source Disks
+    [switch]$CleanupSourceDisks, # Cleanup Source Disks
+
+    [Parameter(Mandatory = $false)]
+    [switch]$IsADC # For Citrix ADC Migrations
 
 )
 #endregion
@@ -348,8 +356,17 @@ try {
     }
 
     # Recreate the VM
+    if ($IsADC.IsPresent) {
+        Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
+        Write-Log -Message "----Plan Name: $($originalVM.Plan.Name)" -Level Info
+        Write-Log -Message "----Plan Product: $($originalVM.Plan.Product)" -Level Info
+        Write-Log -Message "----Plan Publisher: $($originalVM.Plan.Publisher)" -Level Info
+        $NewVM | Set-AzVMPlan -Name $originalVM.Plan.Name -Product $originalVM.Plan.Product -Publisher $originalVM.Plan.Publisher | Out-Null
+    }
+
     Write-Log -Message "Building New VM: $($originalVM.Name) in zone $($Zone)" -Level Info
     New-AzVM -ResourceGroupName $resourceGroup -Location $originalVM.Location -VM $newVM -ErrorAction Stop | Out-Null
+
     Write-Log -Message "Created New VM: $($originalVM.Name) in zone $($Zone)" -Level Info
 
 }
@@ -392,4 +409,3 @@ if ($CleanupSourceDisks.IsPresent) {
 StopIteration
 Exit 0
 #endregion
-
