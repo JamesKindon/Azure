@@ -237,6 +237,43 @@ try {
     $OriginalDataDisks = $originalVM.StorageProfile.DataDisks
     Write-Log -Message "There are $($OriginalDataDisks.Count) data disks for $($vmName)" -Level Info
 
+    # Check for OS Disk deletion type
+    if ($originalVM.StorageProfile.OsDisk.DeleteOption -eq "Delete") {
+        Write-Log -Message "VM OS disk delete option is set to Delete"  -Level Warn
+        Write-Log -Message "This is a migration exercise and the disk MUST be retained"  -Level Warn
+        Write-Log -Message "VM OS disk delete option will be set to detach"  -Level Warn
+        try {
+            $originalVM | Set-AzVMOSDisk -DeleteOption Detach -ErrorAction Stop | Out-Null
+            $originalVM | Update-AzVM -ErrorAction Stop | Out-Null
+            Write-Log -Message "Successfully set OS disk delete option to Detach" -Level Info
+        }
+        catch {
+            Write-Log -Message "$_" -Level Warn
+            Write-Log -Message "Failed to alter OS disk. Terminating script to avoid data loss" -Leve Warn
+            StopIteration
+            Exit 1
+        }
+    }
+    else {
+        Write-Log -Message "VM OS disk delete option is set to Detach. OK"
+    }
+
+    # Check for NIC deletion type
+    foreach ($Interface in $SourceVM.NetworkProfile.NetworkInterfaces) {
+        if ($Interface.DeleteOption -eq "Delete") {
+            Write-Log -Message "VM Network Interfaces delete option is set to Delete"  -Level Warn
+            Write-Log -Message "This is a migration exercise and the NIC MUST be retained"  -Level Warn
+            Write-Log -Message "VM Network delete should be set to detach"  -Level Warn
+  
+            Write-Log -Message "Cannot alter Network Interfaces via PowerShell. Terminating script to avoid data loss" -Leve Warn
+            StopIteration
+            Exit 1
+        }
+        else {
+            Write-Log -Message "VM Network Interfaces delete option is set to Detach or undefined. OK"
+        }
+    }
+
     #region config logging
     Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
     
