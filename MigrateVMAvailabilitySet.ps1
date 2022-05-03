@@ -202,6 +202,7 @@ if ($BackupRemovalConfirmation -eq "Y") {
 
         #region config logging
         Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
+        
         Write-Log -Message "Backing Up Source VM Details to File" -Level Info
         Write-Log -Message "VM Name = $($SourceVM.Name)" -Level Info
         Write-Log -Message "VM Resource Group = $($SourceVM.ResourceGroupName)" -Level Info

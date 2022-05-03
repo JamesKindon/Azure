@@ -239,6 +239,7 @@ try {
 
     #region config logging
     Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
+    
     Write-Log -Message "Backing Up Source VM Details to File" -Level Info
     Write-Log -Message "VM Name = $($originalVM.Name)" -Level Info
     Write-Log -Message "VM Resource Group = $($originalVM.ResourceGroupName)" -Level Info
