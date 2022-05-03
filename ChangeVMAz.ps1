@@ -15,8 +15,6 @@
     Sets the Azure Location
 .PARAMETER Zone
     Sets the desired Availability Zone
-.PARAMETER OSType
-    Specifies either Windows or Linux OS type. Defaults to Windows
 .PARAMETER CleanupSnapshots
     Cleans up Snapshots after migration (deletes!)
 .PARAMETER CleanupSourceDisks
@@ -28,7 +26,7 @@
   .\ChangeVMAz.ps1 -subscriptionId "89745-888-9978" -ResourceGroup "RG-AE-TEST" -vmName "MyVM" -Location "australiaeast" -Zone 1 -CleanupSnapshots -CleanupSourceDisks 
   Moves the desired VM to AZ1 and cleans up snapshots and source disks. Outputs to C:\Logs\ZoneMigrate_VMName.log
 .EXAMPLE
-  .\ChangeVMAz.ps1 -subscriptionId "89745-888-9978" -ResourceGroup "RG-AE-TEST" -vmName "MyVM" -Location "australiaeast" -Zone 1 -CleanupSnapshots -CleanupSourceDisks -OSType Linux -IsADC
+  .\ChangeVMAz.ps1 -subscriptionId "89745-888-9978" -ResourceGroup "RG-AE-TEST" -vmName "MyVM" -Location "australiaeast" -Zone 1 -CleanupSnapshots -CleanupSourceDisks -IsADC
   Moves a Citrix ADC VM to AZ1 and cleans up snapshots and source disks. Outputs to C:\Logs\ZoneMigrate_VMName.log
 #>
 
@@ -58,10 +56,6 @@ Param(
     [Parameter(Mandatory = $True)]
     [ValidateSet("1","2","3")]
     [string]$Zone = "", # Target Zone
-
-    [Parameter(Mandatory = $False)]
-    [ValidateSet("Windows","Linux")]
-    [String]$OSType = "Windows", # Windows or Linux
 
     [Parameter(Mandatory = $false)]
     [switch]$CleanupSnapshots, # Cleanup Snapshots
@@ -242,6 +236,32 @@ try {
     Write-Log -Message "Getting Data Disk Details for $($vmName)" -Level Info
     $OriginalDataDisks = $originalVM.StorageProfile.DataDisks
     Write-Log -Message "There are $($OriginalDataDisks.Count) data disks for $($vmName)" -Level Info
+
+    #region config logging
+    Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
+    Write-Log -Message "Backing Up Source VM Details to File" -Level Info
+    Write-Log -Message "VM Name = $($originalVM.Name)" -Level Info
+    Write-Log -Message "VM Resource Group = $($originalVM.ResourceGroupName)" -Level Info
+    Write-Log -Message "VM Location = $($originalVM.Location)" -Level Info
+    Write-Log -Message "VM Hardware Profile Size = $($originalVM.HardwareProfile.VmSize)" -Level Info
+    Write-Log -Message "VM OSType = $($originalVM.StorageProfile.OsDisk.OsType)" -Level Info
+    Write-Log -Message "OS Disk Name = $($originalVM.StorageProfile.OsDisk.Name)" -Level Info
+    if ($null -ne $originalVM.Zones) {
+        Write-Log -Message "VM Zone = $($originalVM.Zones)" -Level Info
+    }
+    foreach ($DataDisk in $originalVM.StorageProfile.DataDisks) {
+        Write-Log -Message "Data Disk Name = $($DataDisk.Name)" -Level Info
+    }
+    foreach ($Interface in $originalVM.NetworkProfile.NetworkInterfaces) {
+        Write-Log -Message "Interface Primary = $($Interface.Primary)" -Level Info
+        Write-Log -Message "Interface = $($Interface.Id)" -Level Info
+    }
+    Write-Log -Message "Source VM Plan Name = $($originalVM.Plan.Name)" -Level Info
+    Write-Log -Message "Source VM Plan Product = $($originalVM.Plan.Product)" -Level Info
+    Write-Log -Message "Source VM Plan Publisher = $($originalVM.Plan.Publisher)" -Level Info
+
+    Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
+    #endregion
 }
 catch {
     Write-Log -Message $_ -Level Warn
@@ -322,10 +342,10 @@ try {
 
     # Add the pre-created OS disk 
     Write-Log -Message "Adding OS Disk $($OSdisk.Name) to VM config: $($originalVM.Name)" -Level Info
-    if ($OSType -eq "Windows") {
+    if ($originalVM.StorageProfile.OsDisk.OsType -eq "Windows") {
         Set-AzVMOSDisk -VM $newVM -CreateOption Attach -ManagedDiskId $OSdisk.Id -Name $OSdisk.Name -Windows -ErrorAction Stop | Out-Null
     }
-    if ($OSType -eq "Linux") {
+    if ($originalVM.StorageProfile.OsDisk.OsType -eq "Linux") {
         Set-AzVMOSDisk -VM $newVM -CreateOption Attach -ManagedDiskId $OSdisk.Id -Name $OSdisk.Name -Linux -ErrorAction Stop | Out-Null
     }
     

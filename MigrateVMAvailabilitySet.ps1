@@ -16,8 +16,14 @@
     Name of the target Availability Set
 .PARAMETER OSType
     Specifies either Windows or Linux OS type. Defaults to Windows
+.PARAMETER IsADC
+    Sets Citrix ADC mode - will obtain plan, product, and publisher information for the new machines
+    WARNING: You MUST have the supporting LB and IPs at Standard SKU. Basic is NOT supported
 .EXAMPLE
     .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO
+
+.EXAMPLE
+    .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO -OSType Linux -IsADC
 #>
 
 #region Params
@@ -40,9 +46,8 @@ Param(
     [Parameter(Mandatory = $True)]
     [string]$AvailabilitySetName,
 
-    [Parameter(Mandatory = $False)]
-    [ValidateSet("Windows","Linux")]
-    [String]$OSType = "Windows" # Windows or Linux
+    [Parameter(Mandatory = $false)]
+    [switch]$IsADC # For Citrix ADC Migrations
 
 )
 #endregion
@@ -176,7 +181,6 @@ function StopIteration {
 # ============================================================================
 StartIteration
 
-#ENTER A WARNING HERE ABOUT BACKUP DATA BEFORE PROCEEDING!
 Write-Log -Message "IMPORTANT: If backups are enabled for this VM, they must be disabled before running this script. Soft delete should be disabled on the vault and all backups removed prior to migration" -Level Warn
 
 $BackupRemovalConfirmation = Read-Host "Has backup been removed for this VM? Y, N or Q (Quit)"
@@ -186,11 +190,41 @@ while ("Y", "N", "Q" -notcontains $BackupRemovalConfirmation) {
 if ($BackupRemovalConfirmation -eq "Y") {
     Write-Log -Message "Backup confirmation received. Proceeding with migration" -Level Info
 
-
     # Get the details of the VM to be moved to the Availability Set
     try {
         Write-Log -Message "Getting Source VM details for $($VMName)" -Level Info
-        $SourceVM = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName
+        $SourceVM = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -ErrorAction Stop
+        Write-Log -Message "Getting OS Disk Details for $($VMName)" -Level Info
+        $OriginalOSDisk = $SourceVM.StorageProfile.OsDisk
+        Write-Log -Message "Getting Data Disk Details for $($VMName)" -Level Info
+        $OriginalDataDisks = $SourceVM.StorageProfile.DataDisks
+        Write-Log -Message "There are $($OriginalDataDisks.Count) data disks for $($VMName)" -Level Info
+
+        #region config logging
+        Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
+        Write-Log -Message "Backing Up Source VM Details to File" -Level Info
+        Write-Log -Message "VM Name = $($SourceVM.Name)" -Level Info
+        Write-Log -Message "VM Resource Group = $($SourceVM.ResourceGroupName)" -Level Info
+        Write-Log -Message "VM Location = $($SourceVM.Location)" -Level Info
+        Write-Log -Message "VM Hardware Profile Size = $($SourceVM.HardwareProfile.VmSize)" -Level Info
+        Write-Log -Message "VM OSType = $($SourceVM.StorageProfile.OsDisk.OsType)" -Level Info
+        Write-Log -Message "OS Disk Name = $($SourceVM.StorageProfile.OsDisk.Name)" -Level Info
+        if ($null -ne $SourceVM.Zones) {
+            Write-Log -Message "VM Zone = $($SourceVM.Zones)" -Level Info
+        }
+        foreach ($DataDisk in $SourceVM.StorageProfile.DataDisks) {
+            Write-Log -Message "Data Disk Name = $($DataDisk.Name)" -Level Info
+        }
+        foreach ($Interface in $SourceVM.NetworkProfile.NetworkInterfaces) {
+            Write-Log -Message "Interface Primary = $($Interface.Primary)" -Level Info
+            Write-Log -Message "Interface = $($Interface.Id)" -Level Info
+        }
+        Write-Log -Message "Source VM Plan Name = $($SourceVM.Plan.Name)" -Level Info
+        Write-Log -Message "Source VM Plan Product = $($SourceVM.Plan.Product)" -Level Info
+        Write-Log -Message "Source VM Plan Publisher = $($SourceVM.Plan.Publisher)" -Level Info
+
+        Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
+        #endregion
     }
     catch {
         Write-Log -Message $_ -Level Warn
@@ -220,7 +254,7 @@ if ($BackupRemovalConfirmation -eq "Y") {
     # Remove the original VM
     try {
         Write-Log -Message "Removing Source VM $($VMName)" -Level Info
-        $null = Remove-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -ErrorAction Stop
+        Remove-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Force -ErrorAction Stop | out-Null
         Write-Log -Message "Source VM $($VMName) removed" -Level Info
     }
     catch {
@@ -230,41 +264,51 @@ if ($BackupRemovalConfirmation -eq "Y") {
         Exit 1
     }
 
-    # Create the basic configuration for the replacement VM. 
-    Write-Log -Message "Creating new configuration for replacement VM $($VMName)" -Level Info
-    $NewVM = New-AzVMConfig -VMName $SourceVM.Name -VMSize $SourceVM.HardwareProfile.VmSize -AvailabilitySetId $AvailabilitySet.Id
-
-    # Handling Datadisks
-    Write-Log -Message "Setting Data Disk configuration for replacement VM $($VMName)" -Level Info
-    if ($OSType -eq "Windows") {
-        $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows
-    }
-    if ($OSType -eq "Linux") {
-        $null = Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux
-    }
-
-    # Add Data Disks
-    foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
-        Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info 
-        $null = Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach
-    }
-
-    # Add NIC(s) and keep the same NIC as primary
-    Write-Log -Message "Setting Network Interfaces for replacement VM $($VMName)" -Level Info
-    foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {	
-        if ($nic.Primary -eq "True") {
-            $null = Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary
-        }
-        else {
-            $null = Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id 
-        }
-    }
-
-    # Recreate the VM
+    # Create the basic configuration for the replacement VM.
     try {
+        Write-Log -Message "Creating new configuration for replacement VM $($VMName)" -Level Info
+        $NewVM = New-AzVMConfig -VMName $SourceVM.Name -VMSize $SourceVM.HardwareProfile.VmSize -AvailabilitySetId $AvailabilitySet.Id -ErrorAction Stop
+        
+        # Handling OS disks
+        Write-Log -Message "Setting Data Disk configuration for replacement VM $($VMName)" -Level Info
+        if ($SourceVM.StorageProfile.OsDisk.OsType -eq "Windows") {
+            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows | Out-Null
+        }
+        if ($SourceVM.StorageProfile.OsDisk.OsType -eq "Linux") {
+            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux | Out-Null
+        }
+
+        # Add Data Disks
+        foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
+            Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info 
+            Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+        }
+
+        # Add NIC(s) and keep the same NIC as primary
+        Write-Log -Message "Setting Network Interfaces for replacement VM $($VMName)" -Level Info
+        foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {	
+            if ($nic.Primary -eq "True") {
+                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
+            }
+            else {
+                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -ErrorAction Stop | Out-Null
+            }
+        }
+
+        # Grab Sku for ADC
+        if ($IsADC.IsPresent) {
+            Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
+            Write-Log -Message "----Plan Name: $($SourceVM.Plan.Name)" -Level Info
+            Write-Log -Message "----Plan Product: $($SourceVM.Plan.Product)" -Level Info
+            Write-Log -Message "----Plan Publisher: $($SourceVM.Plan.Publisher)" -Level Info
+            $NewVM | Set-AzVMPlan -Name $SourceVM.Plan.Name -Product $SourceVM.Plan.Product -Publisher $SourceVM.Plan.Publisher | Out-Null
+        }
+
+        # Recreate the VM
         Write-Log -Message "Creating the VM $($VMName)" -Level Info
-        $null = New-AzVM -ResourceGroupName $ResourceGroup -Location $SourceVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop
+        New-AzVM -ResourceGroupName $ResourceGroup -Location $SourceVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
         Write-Log -Message "VM Creation complete. If backups are required, enroll this machine for VM backups" -Level Info
+
     }
     catch {
         Write-Log -Message $_ -Level Warn
@@ -273,16 +317,19 @@ if ($BackupRemovalConfirmation -eq "Y") {
         Exit 1
     }
 }
+
 elseif ($BackupRemovalConfirmation -eq "N") { 
     Write-Log -Message "Backup removed not confirmed. Exiting Script" -Level Info
     StopIteration
     exit 0
 }
+
 elseif ($BackupRemovalConfirmation -eq "Q") {
     Write-Log -Message "Quit Selected. Exiting Script" -Level Info
     StopIteration
     exit 0
 }
+
 StopIteration
 Exit 0
 #endregion
