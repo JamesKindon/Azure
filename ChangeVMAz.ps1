@@ -199,6 +199,72 @@ function StopIteration {
     Write-Log -Message "--------Finished Iteration--------" -Level Info
 }
 
+function RecreateSourceVM {
+    try {
+        # Create the basic configuration for the replacement VM
+        Write-Log -Message "Creating new configuration for replacement VM $($RestoreVM.Name)" -Level Info
+        if ($null -eq $RestoreVM.Zones) {
+            $NewVM = New-AzVMConfig -VMName $RestoreVM.Name -VMSize $RestoreVM.HardwareProfile.VmSize -ErrorAction Stop  #Check Zones
+        }
+        else {
+            $NewVM = New-AzVMConfig -VMName $RestoreVM.Name -VMSize $RestoreVM.HardwareProfile.VmSize -Zone $RestoreVM.Zones -ErrorAction Stop  #Check Zones
+        }
+
+        # Add the OS disk 
+        Write-Log -Message "Adding OS Disk $($RestoreVM.StorageProfile.OsDisk.Name) to VM config: $($RestoreVM.Name)" -Level Info
+        if ($RestoreVM.StorageProfile.OsDisk.OsType -eq "Windows") {
+            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $RestoreVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $RestoreVM.StorageProfile.OsDisk.Name -Windows -ErrorAction Stop | Out-Null
+        }
+        if ($RestoreVM.StorageProfile.OsDisk.OsType -eq "Linux") {
+            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $RestoreVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $RestoreVM.StorageProfile.OsDisk.Name -Linux -ErrorAction Stop | Out-Null
+        }
+
+        # Add Data Disks
+        foreach ($disk in $RestoreVM.StorageProfile.DataDisks) {
+            Write-Log -Message "Adding Data Disk for VM $($VMName)" -Level Info 
+            Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+        }
+
+        # Add NIC(s) and keep the same NIC as primary
+        foreach ($nic in $RestoreVM.NetworkProfile.NetworkInterfaces) {	
+            if ($nic.Primary -eq "True") {
+                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
+             }
+             else {
+                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -ErrorAction Stop | Out-Null
+             }
+        }
+
+        # Grab Sku for ADC
+        if ($IsADC.IsPresent) {
+            Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
+            Write-Log -Message "----Plan Name: $($RestoreVM.Plan.Name)" -Level Info
+            Write-Log -Message "----Plan Product: $($RestoreVM.Plan.Product)" -Level Info
+            Write-Log -Message "----Plan Publisher: $($RestoreVM.Plan.Publisher)" -Level Info
+            $NewVM | Set-AzVMPlan -Name $RestoreVM.Plan.Name -Product $RestoreVM.Plan.Product -Publisher $RestoreVM.Plan.Publisher | Out-Null
+        }
+
+        # Handle boot diagnostics
+        $BootDiagsStorageAccount = $RestoreVM.DiagnosticsProfile.BootDiagnostics.StorageUri
+        $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace "https://",""
+        $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
+
+        if ($null -ne $BootDiagsStorageAccount) {
+            $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $RestoreVM.ResourceGroupName -StorageAccountName $BootDiagsStorageAccount | Out-Null
+        }
+
+        # Recreate the VM
+        $NewVM | Set-AzVMPlan -Name $RestoreVM.Plan.Name -Product $RestoreVM.Plan.Product -Publisher $RestoreVM.Plan.Publisher | Out-Null
+
+        New-AzVM -ResourceGroupName $RestoreVM.ResourceGroupName -Location $RestoreVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
+
+    }
+    catch {
+        Write-Log -Message "$_" -Level Warn
+        Write-Log -Message "Failed to restore source VM. Review logs and build the VM manually" -Level Warn
+        Exit 1
+    }
+}
 #endregion
 
 #region Variables
@@ -230,6 +296,7 @@ Write-Log -Message "Getting Virtual Machine Details for $($vmName)" -Level Info
 
 try {
     $originalVM = Get-AzVM -ResourceGroupName $resourceGroup -Name $vmName -ErrorAction Stop
+    $RestoreVM = $originalVM
     Write-Log -Message "Retrieved Virtual Machine Details for $($vmName)" -Level Info
     Write-Log -Message "Getting OS Disk Details for $($vmName)" -Level Info
     $OriginalOSDisk = $originalVM.StorageProfile.OsDisk
@@ -435,7 +502,7 @@ try {
     $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
 
     if ($null -ne $BootDiagsStorageAccount) {
-        $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $originalVM.ResourceGroupName | Out-Null
+        $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $originalVM.ResourceGroupName -StorageAccountName $BootDiagsStorageAccount | Out-Null
     }
 
     # Recreate the VM
@@ -447,6 +514,10 @@ try {
 }
 catch {
     Write-Log -Message $_ -Level Warn
+    Write-Log -Message "Failed to create VM $($VMName). Attempting to recreate source VM"
+    RecreateSourceVM
+    StopIteration
+    Exit 1
 }
 
 #Cleanup Snapshots
