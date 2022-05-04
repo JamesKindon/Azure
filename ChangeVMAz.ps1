@@ -423,12 +423,11 @@ try {
 
         #Create the Disk
         Write-Log -Message "Creating Data Disk $($disk.Name + "_z_$Zone") in zone: $($Zone)" -Level Info
-        $datadiskConfig = New-AzDiskConfig -Location $DataSnapshot.Location -SourceResourceId $DataSnapshot.Id -CreateOption Copy -SkuName $DiskDetails.Sku.Name -Zone $zone
+        $DataDiskConfig = New-AzDiskConfig -Location $DataSnapshot.Location -SourceResourceId $DataSnapshot.Id -CreateOption Copy -SkuName $DiskDetails.Sku.Name -Zone $zone
         $CleansedDataDiskName = $Disk.Name
         $CleansedDataDiskName = $CleansedDataDiskName -replace "_z_*",""
-        $datadisk = New-AzDisk -Disk $datadiskConfig -ResourceGroupName $ResourceGroup -DiskName ($CleansedDataDiskName + "_z_$Zone") -ErrorAction Stop
-        #$datadisk = New-AzDisk -Disk $datadiskConfig -ResourceGroupName $ResourceGroup -DiskName ($disk.Name + "_z_$Zone")
-        Write-Log -Message "Created Data Disk: $($datadisk.Name) in zone: $($Zone)" -Level Info
+        $DataDisk = New-AzDisk -Disk $DataDiskConfig -ResourceGroupName $ResourceGroup -DiskName ($CleansedDataDiskName + "_z_$Zone") -ErrorAction Stop
+        Write-Log -Message "Created Data Disk: $($DataDisk.Name) in zone: $($Zone)" -Level Info
     }
 }
 catch {
