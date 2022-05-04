@@ -186,9 +186,9 @@ function RecreateSourceVM {
         }
 
         # Add Data Disks
-        foreach ($disk in $RestoreVM.StorageProfile.DataDisks) {
+        foreach ($Disk in $RestoreVM.StorageProfile.DataDisks) {
             Write-Log -Message "Adding Data Disk for VM $($VMName)" -Level Info 
-            Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+            Add-AzVMDataDisk -VM $NewVM -Name $Disk.Name -ManagedDiskId $Disk.ManagedDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
         }
 
         # Add NIC(s) and keep the same NIC as primary
@@ -384,9 +384,9 @@ if ($BackupRemovalConfirmation -eq "Y") {
         }
 
         # Add Data Disks
-        foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
+        foreach ($Disk in $SourceVM.StorageProfile.DataDisks) {
             Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info 
-            Add-AzVMDataDisk -VM $NewVM -Name $disk.Name -ManagedDiskId $disk.ManagedDisk.Id -Caching $disk.Caching -Lun $disk.Lun -DiskSizeInGB $disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+            Add-AzVMDataDisk -VM $NewVM -Name $Disk.Name -ManagedDiskId $Disk.ManagedDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
         }
 
         # Add NIC(s) and keep the same NIC as primary
