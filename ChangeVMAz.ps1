@@ -297,6 +297,7 @@ try {
     Write-Log -Message "Source VM Plan Name = $($originalVM.Plan.Name)" -Level Info
     Write-Log -Message "Source VM Plan Product = $($originalVM.Plan.Product)" -Level Info
     Write-Log -Message "Source VM Plan Publisher = $($originalVM.Plan.Publisher)" -Level Info
+    Write-Log -Message "Source VM Diagnostics Account = $($originalVM.DiagnosticsProfile.BootDiagnostics.StorageUri)" -Level Info
 
     Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
     #endregion
@@ -329,7 +330,10 @@ try {
     #Create the Disk
     Write-Log -Message "Creating OS Disk in zone: $($Zone)" -Level Info
     $diskConfig = New-AzDiskConfig -Location $OSSnapshot.Location -SourceResourceId $OSSnapshot.Id -CreateOption Copy -SkuName $DiskDetailsOS.Sku.Name -Zone $zone -ErrorAction Stop
-    $OSdisk = New-AzDisk -Disk $diskConfig -ResourceGroupName $resourceGroup -DiskName ($originalVM.StorageProfile.OsDisk.Name + "_z_$Zone") -ErrorAction Stop
+    $CleansedOSDiskName = $originalVM.StorageProfile.OsDisk.Name
+    $CleansedOSDiskName = $CleansedOSDiskName -replace "_z_*",""
+    $OSdisk = New-AzDisk -Disk $diskConfig -ResourceGroupName $resourceGroup -DiskName ($CleansedOSDiskName + "_z_$Zone") -ErrorAction Stop
+    #$OSdisk = New-AzDisk -Disk $diskConfig -ResourceGroupName $resourceGroup -DiskName ($originalVM.StorageProfile.OsDisk.Name + "_z_$Zone") -ErrorAction Stop
     Write-Log -Message "Created OS Disk $($OSDisk.Name) in zone: $($Zone)" -Level Info
 }
 catch {
@@ -353,7 +357,10 @@ try {
         #Create the Disk
         Write-Log -Message "Creating Data Disk $($disk.Name + "_z_$Zone") in zone: $($Zone)" -Level Info
         $datadiskConfig = New-AzDiskConfig -Location $DataSnapshot.Location -SourceResourceId $DataSnapshot.Id -CreateOption Copy -SkuName $DiskDetails.Sku.Name -Zone $zone
-        $datadisk = New-AzDisk -Disk $datadiskConfig -ResourceGroupName $resourceGroup -DiskName ($disk.Name + "_z_$Zone")
+        $CleansedDataDiskName = $Disk.Name
+        $CleansedDataDiskName = $CleansedDataDiskName -replace "_z_*",""
+        $datadisk = New-AzDisk -Disk $datadiskConfig -ResourceGroupName $resourceGroup -DiskName ($CleansedDataDiskName + "_z_$Zone") -ErrorAction Stop
+        #$datadisk = New-AzDisk -Disk $datadiskConfig -ResourceGroupName $resourceGroup -DiskName ($disk.Name + "_z_$Zone")
         Write-Log -Message "Created Data Disk: $($datadisk.Name) in zone: $($Zone)" -Level Info
     }
 }
@@ -413,7 +420,7 @@ try {
         Write-Log -Message $_ -Level Warn
     }
 
-    # Recreate the VM
+    # Handle ADC
     if ($IsADC.IsPresent) {
         Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
         Write-Log -Message "----Plan Name: $($originalVM.Plan.Name)" -Level Info
@@ -422,6 +429,16 @@ try {
         $NewVM | Set-AzVMPlan -Name $originalVM.Plan.Name -Product $originalVM.Plan.Product -Publisher $originalVM.Plan.Publisher | Out-Null
     }
 
+    # Handle boot diagnostics
+    $BootDiagsStorageAccount = $originalVM.DiagnosticsProfile.BootDiagnostics.StorageUri
+    $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace "https://",""
+    $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
+
+    if ($null -ne $BootDiagsStorageAccount) {
+        $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $originalVM.ResourceGroupName | Out-Null
+    }
+
+    # Recreate the VM
     Write-Log -Message "Building New VM: $($originalVM.Name) in zone $($Zone)" -Level Info
     New-AzVM -ResourceGroupName $resourceGroup -Location $originalVM.Location -VM $newVM -ErrorAction Stop | Out-Null
 

@@ -259,6 +259,7 @@ if ($BackupRemovalConfirmation -eq "Y") {
         Write-Log -Message "Source VM Plan Name = $($SourceVM.Plan.Name)" -Level Info
         Write-Log -Message "Source VM Plan Product = $($SourceVM.Plan.Product)" -Level Info
         Write-Log -Message "Source VM Plan Publisher = $($SourceVM.Plan.Publisher)" -Level Info
+        Write-Log -Message "Source VM Diagnostics Account = $($SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri)" -Level Info
 
         Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
         #endregion
@@ -339,6 +340,15 @@ if ($BackupRemovalConfirmation -eq "Y") {
             Write-Log -Message "----Plan Product: $($SourceVM.Plan.Product)" -Level Info
             Write-Log -Message "----Plan Publisher: $($SourceVM.Plan.Publisher)" -Level Info
             $NewVM | Set-AzVMPlan -Name $SourceVM.Plan.Name -Product $SourceVM.Plan.Product -Publisher $SourceVM.Plan.Publisher | Out-Null
+        }
+
+        # Handle boot diagnostics
+        $BootDiagsStorageAccount = $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri
+        $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace "https://",""
+        $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
+    
+        if ($null -ne $BootDiagsStorageAccount) {
+            $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $SourceVM.ResourceGroupName | Out-Null
         }
 
         # Recreate the VM
