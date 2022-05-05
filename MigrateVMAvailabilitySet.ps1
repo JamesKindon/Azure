@@ -227,8 +227,6 @@ function RecreateSourceVM {
         }
 
         # Recreate the VM
-        $NewVM | Set-AzVMPlan -Name $RestoreVM.Plan.Name -Product $RestoreVM.Plan.Product -Publisher $RestoreVM.Plan.Publisher | Out-Null
-
         New-AzVM -ResourceGroupName $RestoreVM.ResourceGroupName -Location $RestoreVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
 
     }
@@ -354,21 +352,23 @@ if ($BackupRemovalConfirmation -eq "Y") {
 
     ####//////////////////
     if ($null -ne $SourceVM.Zones) {
-        Write-Log -Message "Source VM is zones based in zone :$($SourceVM.Zones). Recreating Disks" -Level Warn
+        Write-Log -Message "Source VM is zones based in zone: $($SourceVM.Zones). Recreating Disks" -Level Warn
 
         # Create a SnapShot of the OS disk and then, create an Azure Disk
         try {
             Write-Log -Message "Creating OS Disk Snapshot for $($OriginalOSDisk.Name)" -Level Info
-            $DiskDetailsOS = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $OriginalOSDisk.Name -ErrorAction Stop
-            $SnapshotOSConfig = New-AzSnapshotConfig -SourceUri $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Location $location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop | Out-Null
-            $OSSnapshot = New-AzSnapshot -Snapshot $snapshotOSConfig -SnapshotName ($SourceVM.StorageProfile.OsDisk.Name + "-snapshot") -ResourceGroupName $ResourceGroup -ErrorAction Stop | Out-Null
+            $DiskDetailsOS = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $OriginalOSDisk.Name-ErrorAction Stop
+            $SnapshotOSConfig = New-AzSnapshotConfig -SourceUri $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Location $SourceVM.location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop
+            $OSSnapshot = New-AzSnapshot -Snapshot $snapshotOSConfig -SnapshotName ($SourceVM.StorageProfile.OsDisk.Name + "-snapshot") -ResourceGroupName $ResourceGroup -ErrorAction Stop
             Write-Log -Message "Created OS Disk Snapshot: $($OSSnapshot.Name)" -Level Info
 
             #Create the Disk
             Write-Log -Message "Creating OS Disk" -Level Info
             $DiskConfig = New-AzDiskConfig -Location $OSSnapshot.Location -SourceResourceId $OSSnapshot.Id -CreateOption Copy -SkuName $DiskDetailsOS.Sku.Name -ErrorAction Stop
             $CleansedOSDiskName = $SourceVM.StorageProfile.OsDisk.Name
+            Write-Host "$CleansedOSDiskName"
             $CleansedOSDiskName = $CleansedOSDiskName -replace "_z_*",""
+            Write-Host "$CleansedOSDiskName"
             $OSDisk = New-AzDisk -Disk $diskConfig -ResourceGroupName $ResourceGroup -DiskName ($CleansedOSDiskName) -ErrorAction Stop
             Write-Log -Message "Created OS Disk $($OSDisk.Name)" -Level Info
         }
@@ -387,12 +387,12 @@ if ($BackupRemovalConfirmation -eq "Y") {
                 $DiskDetails = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $disk.Name -ErrorAction Stop
         
                 Write-Log -Message "Creating snapshot for $($Disk.Name)" -Level Info
-                $SnapshotDataConfig = New-AzSnapshotConfig -SourceUri $disk.ManagedDisk.Id -Location $location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop
+                $SnapshotDataConfig = New-AzSnapshotConfig -SourceUri $disk.ManagedDisk.Id -Location $SourceVM.location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop
                 $DataSnapshot = New-AzSnapshot -Snapshot $SnapshotDataConfig -SnapshotName ($disk.Name + '-snapshot') -ResourceGroupName $ResourceGroup -ErrorAction Stop
                 Write-Log -Message "Created Snapshot: $($DataSnapshot.Name)" -Level Info
         
                 #Create the Disk
-                Write-Log -Message "Creating Data Disk $($disk.Name)" -Level Info
+                Write-Log -Message "Creating Data Disk" -Level Info
                 $DataDiskConfig = New-AzDiskConfig -Location $DataSnapshot.Location -SourceResourceId $DataSnapshot.Id -CreateOption Copy -SkuName $DiskDetails.Sku.Name
                 $CleansedDataDiskName = $Disk.Name
                 $CleansedDataDiskName = $CleansedDataDiskName -replace "_z_*",""

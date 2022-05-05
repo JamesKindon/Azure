@@ -261,8 +261,6 @@ function RecreateSourceVM {
         }
 
         # Recreate the VM
-        $NewVM | Set-AzVMPlan -Name $RestoreVM.Plan.Name -Product $RestoreVM.Plan.Product -Publisher $RestoreVM.Plan.Publisher | Out-Null
-
         New-AzVM -ResourceGroupName $RestoreVM.ResourceGroupName -Location $RestoreVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
 
     }
