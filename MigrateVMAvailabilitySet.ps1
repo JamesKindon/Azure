@@ -215,8 +215,15 @@ function RecreateSourceVM {
         $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace "https://",""
         $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
 
-        if ($null -ne $BootDiagsStorageAccount) {
+        if ($null -ne $RestoreVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $RestoreVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # retain existing boot diagnostics storage account
             $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $RestoreVM.ResourceGroupName -StorageAccountName $BootDiagsStorageAccount | Out-Null
+        } elseif ($null -eq $RestoreVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $RestoreVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # use system managed boot diagnostics
+            $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $RestoreVM.ResourceGroupName | Out-Null
+        } elseif (-not $RestoreVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # disable diagnostics
+            $NewVM | Set-AzVMBootDiagnostic -Disable | Out-Null
         }
 
         # Recreate the VM
@@ -307,26 +314,33 @@ if ($BackupRemovalConfirmation -eq "Y") {
         Write-Log -Message "-----------------------Config Backup Start------------------------------------------" -Level Info
         
         Write-Log -Message "Backing Up Source VM Details to File" -Level Info
-        Write-Log -Message "VM Name = $($SourceVM.Name)" -Level Info
-        Write-Log -Message "VM Resource Group = $($SourceVM.ResourceGroupName)" -Level Info
-        Write-Log -Message "VM Location = $($SourceVM.Location)" -Level Info
-        Write-Log -Message "VM Hardware Profile Size = $($SourceVM.HardwareProfile.VmSize)" -Level Info
-        Write-Log -Message "VM OSType = $($SourceVM.StorageProfile.OsDisk.OsType)" -Level Info
-        Write-Log -Message "OS Disk Name = $($SourceVM.StorageProfile.OsDisk.Name)" -Level Info
+        Write-Log -Message "Source VM Name = $($SourceVM.Name)" -Level Info
+        Write-Log -Message "Source VM Resource Group = $($SourceVM.ResourceGroupName)" -Level Info
+        Write-Log -Message "Source VM Location = $($SourceVM.Location)" -Level Info
+        Write-Log -Message "Source VM Hardware Profile Size = $($SourceVM.HardwareProfile.VmSize)" -Level Info
+        Write-Log -Message "Source VM OSType = $($SourceVM.StorageProfile.OsDisk.OsType)" -Level Info
+        Write-Log -Message "Source VM OS Disk Name = $($SourceVM.StorageProfile.OsDisk.Name)" -Level Info
         if ($null -ne $SourceVM.Zones) {
-            Write-Log -Message "VM Zone = $($SourceVM.Zones)" -Level Info
+            Write-Log -Message "Source VM Zone = $($SourceVM.Zones)" -Level Info
         }
         foreach ($DataDisk in $SourceVM.StorageProfile.DataDisks) {
-            Write-Log -Message "Data Disk Name = $($DataDisk.Name)" -Level Info
+            Write-Log -Message "Source VM Data Disk Name = $($DataDisk.Name)" -Level Info
         }
         foreach ($Interface in $SourceVM.NetworkProfile.NetworkInterfaces) {
-            Write-Log -Message "Interface Primary = $($Interface.Primary)" -Level Info
-            Write-Log -Message "Interface = $($Interface.Id)" -Level Info
+            Write-Log -Message "Source VM Interface Primary = $($Interface.Primary)" -Level Info
+            Write-Log -Message "Source VM Interface = $($Interface.Id)" -Level Info
         }
         Write-Log -Message "Source VM Plan Name = $($SourceVM.Plan.Name)" -Level Info
         Write-Log -Message "Source VM Plan Product = $($SourceVM.Plan.Product)" -Level Info
         Write-Log -Message "Source VM Plan Publisher = $($SourceVM.Plan.Publisher)" -Level Info
-        Write-Log -Message "Source VM Diagnostics Account = $($SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri)" -Level Info
+
+        if ($null -ne $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            Write-Log -Message "Source VM Diagnostics Account = $($SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri)" -Level Info
+        } elseif ($null -eq $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            Write-Log -Message "Source VM Diagnostics = Managed" -Level Info
+        } elseif (-not $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            Write-Log -Message "Source VM Diagnostics = Disabled" -Level Info
+        }
 
         Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
         #endregion
@@ -337,6 +351,63 @@ if ($BackupRemovalConfirmation -eq "Y") {
         StopIteration
         Exit 1
     }
+
+    ####//////////////////
+    if ($null -ne $SourceVM.Zones) {
+        Write-Log -Message "Source VM is zones based in zone :$($SourceVM.Zones). Recreating Disks" -Level Warn
+
+        # Create a SnapShot of the OS disk and then, create an Azure Disk
+        try {
+            Write-Log -Message "Creating OS Disk Snapshot for $($OriginalOSDisk.Name)" -Level Info
+            $DiskDetailsOS = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $OriginalOSDisk.Name -ErrorAction Stop
+            $SnapshotOSConfig = New-AzSnapshotConfig -SourceUri $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Location $location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop | Out-Null
+            $OSSnapshot = New-AzSnapshot -Snapshot $snapshotOSConfig -SnapshotName ($SourceVM.StorageProfile.OsDisk.Name + "-snapshot") -ResourceGroupName $ResourceGroup -ErrorAction Stop | Out-Null
+            Write-Log -Message "Created OS Disk Snapshot: $($OSSnapshot.Name)" -Level Info
+
+            #Create the Disk
+            Write-Log -Message "Creating OS Disk" -Level Info
+            $DiskConfig = New-AzDiskConfig -Location $OSSnapshot.Location -SourceResourceId $OSSnapshot.Id -CreateOption Copy -SkuName $DiskDetailsOS.Sku.Name -ErrorAction Stop
+            $CleansedOSDiskName = $SourceVM.StorageProfile.OsDisk.Name
+            $CleansedOSDiskName = $CleansedOSDiskName -replace "_z_*",""
+            $OSDisk = New-AzDisk -Disk $diskConfig -ResourceGroupName $ResourceGroup -DiskName ($CleansedOSDiskName) -ErrorAction Stop
+            Write-Log -Message "Created OS Disk $($OSDisk.Name)" -Level Info
+        }
+        catch {
+            Write-Log -Message $_ -Level Warn
+            StopIteration
+            Exit 1
+        }
+
+        # Create a Snapshot from the Data Disks and the Azure Disks
+        try {
+            Write-Log -Message "Creating Data Disk Snapshots" -Level Info
+            foreach ($disk in $SourceVM.StorageProfile.DataDisks) {
+                # Create the Snapshot
+                Write-Log -Message "Getting Disk details for $($Disk.Name)" -Level Info
+                $DiskDetails = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $disk.Name -ErrorAction Stop
+        
+                Write-Log -Message "Creating snapshot for $($Disk.Name)" -Level Info
+                $SnapshotDataConfig = New-AzSnapshotConfig -SourceUri $disk.ManagedDisk.Id -Location $location -CreateOption copy -SkuName "Standard_LRS" -ErrorAction Stop
+                $DataSnapshot = New-AzSnapshot -Snapshot $SnapshotDataConfig -SnapshotName ($disk.Name + '-snapshot') -ResourceGroupName $ResourceGroup -ErrorAction Stop
+                Write-Log -Message "Created Snapshot: $($DataSnapshot.Name)" -Level Info
+        
+                #Create the Disk
+                Write-Log -Message "Creating Data Disk $($disk.Name)" -Level Info
+                $DataDiskConfig = New-AzDiskConfig -Location $DataSnapshot.Location -SourceResourceId $DataSnapshot.Id -CreateOption Copy -SkuName $DiskDetails.Sku.Name
+                $CleansedDataDiskName = $Disk.Name
+                $CleansedDataDiskName = $CleansedDataDiskName -replace "_z_*",""
+                $DataDisk = New-AzDisk -Disk $DataDiskConfig -ResourceGroupName $ResourceGroup -DiskName ($CleansedDataDiskName) -ErrorAction Stop
+                Write-Log -Message "Created Data Disk: $($DataDisk.Name)" -Level Info
+            }
+        }
+        catch {
+            Write-Log -Message $_ -Level Warn
+            StopIteration
+            Exit 1
+        }
+    }
+
+    ##///////////////////
 
     # Create new availability set if it does not exist
     Write-Log -Message "Getting Availability Set details for $($AvailabilitySetName)" -Level Info
@@ -376,17 +447,46 @@ if ($BackupRemovalConfirmation -eq "Y") {
         
         # Handling OS disks
         Write-Log -Message "Setting Data Disk configuration for replacement VM $($VMName)" -Level Info
+        ####////////
         if ($SourceVM.StorageProfile.OsDisk.OsType -eq "Windows") {
-            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows | Out-Null
+            ####////////
+            if ($null -ne $SourceVM.Zones) {
+                Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $OSDisk.Id -Name $OSDisk.Name -Windows | Out-Null
+            }
+            else {
+                Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows | Out-Null
+            }
+            #Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Windows | Out-Null
+        ####////////
         }
         if ($SourceVM.StorageProfile.OsDisk.OsType -eq "Linux") {
-            Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux | Out-Null
+            ####////////
+            if ($null -ne $SourceVM.Zones) {
+                Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $OSDisk.Id -Name $OSDisk.Name -Linux | Out-Null
+            }
+            else {
+                Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux | Out-Null
+            }
+            #Set-AzVMOSDisk -VM $NewVM -CreateOption Attach -ManagedDiskId $SourceVM.StorageProfile.OsDisk.ManagedDisk.Id -Name $SourceVM.StorageProfile.OsDisk.Name -Linux | Out-Null
+        ####////////
         }
 
         # Add Data Disks
         foreach ($Disk in $SourceVM.StorageProfile.DataDisks) {
-            Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info 
-            Add-AzVMDataDisk -VM $NewVM -Name $Disk.Name -ManagedDiskId $Disk.ManagedDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+            Write-Log -Message "Adding Data Disk for replacement VM $($VMName)" -Level Info
+            ####////////
+            if ($null -ne $SourceVM.Zones) {
+                $DataDiskOriginalName = $Disk.Name
+                $DataDiskCleansedName = $DataDiskOriginalName -replace "_z_*",""
+                $CleansedDataDisk = Get-AzDisk -ResourceGroupName $SourceVM.ResourceGroupName -DiskName $DataDiskCleansedName -ErrorAction Stop
+                Add-AzVMDataDisk -VM $NewVM -Name $CleansedDataDisk.Name -ManagedDiskId $CleansedDataDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+                
+            }
+            else {
+                Add-AzVMDataDisk -VM $NewVM -Name $Disk.Name -ManagedDiskId $Disk.ManagedDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+            }
+            #Add-AzVMDataDisk -VM $NewVM -Name $Disk.Name -ManagedDiskId $Disk.ManagedDisk.Id -Caching $Disk.Caching -Lun $Disk.Lun -DiskSizeInGB $Disk.DiskSizeGB -CreateOption Attach -ErrorAction Stop | Out-Null
+        ####////////
         }
 
         # Add NIC(s) and keep the same NIC as primary
@@ -414,8 +514,19 @@ if ($BackupRemovalConfirmation -eq "Y") {
         $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace "https://",""
         $BootDiagsStorageAccount = $BootDiagsStorageAccount -replace ".blob.core.windows.net/",""
     
-        if ($null -ne $BootDiagsStorageAccount) {
+        #if ($null -ne $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri) {
+        #    $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $SourceVM.ResourceGroupName -StorageAccountName $BootDiagsStorageAccount | Out-Null
+        #}
+
+        if ($null -ne $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # retain existing boot diagnostics storage account
             $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $SourceVM.ResourceGroupName -StorageAccountName $BootDiagsStorageAccount | Out-Null
+        } elseif ($null -eq $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # use system managed boot diagnostics
+            $NewVM | Set-AzVMBootDiagnostic -Enable -ResourceGroupName $SourceVM.ResourceGroupName | Out-Null
+        } elseif (-not $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
+            # disable diagnostics
+            $NewVM | Set-AzVMBootDiagnostic -Disable | Out-Null
         }
 
         # Recreate the VM
