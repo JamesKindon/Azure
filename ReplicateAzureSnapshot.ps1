@@ -237,7 +237,7 @@ function GetSourceSubscriptionSnapshots {
         Write-Log -Message "Getting Snapshots in source Subscription in Resource Group: $($SourceResourceGroup)" -Level Info
         $Global:SourceSnapshots = Get-AzSnapShot -ResourceGroupName $SourceResourceGroup
     }
-    Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication"
+    Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication" -Level Info
 }
 
 #endregion
@@ -407,7 +407,7 @@ if ($mode -eq "DifferentSubDifferentRegion") {
     }
 
     $SourceSnapshots = $NewSourceSnaps
-    Write-Log -Message "There are now $(($SourceSnapShots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) for replication"
+    Write-Log -Message "There are now $(($SourceSnapShots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) for replication" -Level Info
 
     if ($SourceSnapshots.Count -gt 0) {
 
@@ -450,7 +450,7 @@ if ($mode -eq "DifferentSubDifferentRegion") {
                 try {
                     Write-Log -Message "Attempting to create and retrieve SAS URI for snapshot $($Snapshot.Name)" -Level Info
                     $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 3600 -Access Read -ErrorAction Stop
-                    Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)"
+                    Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)" -Level Info
                 }
                 catch {
                     Write-Log -Message $_ -Level Warn
@@ -620,7 +620,7 @@ if ($mode -eq "SameSubDifferentRegion") {
                 try {
                     Write-Log -Message "Attempting to create and retrieve SAS URI for snapshot $($Snapshot.Name)" -Level Info
                     $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 3600 -Access Read -ErrorAction Stop
-                    Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)"
+                    Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)" -Level Info
                 }
                 catch {
                     Write-Log -Message $_ -Level Warn
@@ -725,7 +725,7 @@ if ($Sync -eq "Sync") {
             Write-Log -Message "Getting Snapshots in source Subscription in Resource Group: $($SourceResourceGroup)" -Level Info
             $SourceSnapshots = Get-AzSnapShot -ResourceGroupName $SourceResourceGroup
         }
-        Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication"
+        Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication" -Level Info
 
         GetTargetSubscriptionSnapshots
 
@@ -761,7 +761,7 @@ if ($Sync -eq "Sync") {
             Write-Log -Message "Getting Snapshots in source Subscription in Resource Group: $($SourceResourceGroup)" -Level Info
             $SourceSnapshots = Get-AzSnapShot -ResourceGroupName $SourceResourceGroup
         }
-        Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication"
+        Write-Log -Message "There are $(($SourceSnapshots).Count) snapshots in the source Resource Group: $($SourceResourceGroup) targeted for replication" -Level Info
 
         SelectTargetSubscription
 
