@@ -292,13 +292,9 @@ else {
 # Output operational data
 #----------------------------------------------------------------------------
 #region OpData
-if ($Sync -eq "Sync") {
-    Write-Log -Message "Sync mode is enabled. Comparing source and target Resource Groups. Deleting Snaphots in target if removed or filtered from the source list" -Level Info
-}
+if ($Sync -eq "Sync") { Write-Log -Message "Sync mode is enabled. Comparing source and target Resource Groups. Deleting Snaphots in target if removed or filtered from the source list" -Level Info }
 
-if ($UseTagFiltering -eq "True") {
-    Write-Log -Message "Tag Filtering is enabled. Filtering source snapshots via specified Tag: $($Tag) with value: $($ReplicateTrigger)" -Level Info
-}
+if ($UseTagFiltering -eq "True") { Write-Log -Message "Tag Filtering is enabled. Filtering source snapshots via specified Tag: $($Tag) with value: $($ReplicateTrigger)" -Level Info }
 
 if ($null -ne $SnapshotName -and $Sync -eq "Sync") {
     Write-Log -Message "Sync Mode cannot be used when combined with SnapshotName. Ensure Sync is set to DontSync" -Level Warn
@@ -314,15 +310,9 @@ if ($null -ne $SnapshotName -and $UseTagFiltering -eq "True") {
     Exit 1
 }
 
-if ($mode -eq "DifferentSubSameRegion") {
-    Write-Log -Message "Mode: DifferentSubSameRegion is selected. Copying snapshots to the same region in a different subscripion" -Level Info
-}
-if ($mode -eq "DifferentSubDifferentRegion"){
-    Write-Log -Message "Mode: DifferentSubDifferentRegion is selected. Copying snapshots to a different region in a different subscripion" -Level Info
-}
-if ($mode -eq "SameSubDifferentRegion"){
-    Write-Log -Message "Mode: SameSubDifferentRegion is selected. Copying snapshots to a different region in the same subscripion" -Level Info
-}
+if ($mode -eq "DifferentSubSameRegion") { Write-Log -Message "Mode: DifferentSubSameRegion is selected. Copying snapshots to the same region in a different subscripion" -Level Info }
+if ($mode -eq "DifferentSubDifferentRegion") { Write-Log -Message "Mode: DifferentSubDifferentRegion is selected. Copying snapshots to a different region in a different subscripion" -Level Info }
+if ($mode -eq "SameSubDifferentRegion") { Write-Log -Message "Mode: SameSubDifferentRegion is selected. Copying snapshots to a different region in the same subscripion" -Level Info }
 
 Write-Log -Message "Source Subscription is: $($SourceSubscriptionID)" -Level Info
 if ($null -ne $TargetSubscriptionID -and $mode -ne "SameSubDifferentRegion") { Write-Log -Message "Target Subscription is: $($TargetSubscriptionID)" -Level Info }
