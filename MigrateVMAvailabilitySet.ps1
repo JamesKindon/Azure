@@ -14,15 +14,13 @@
     Name of the target VM
 .PARAMETER AvailabilitySetName
     Name of the target Availability Set
-.PARAMETER OSType
-    Specifies either Windows or Linux OS type. Defaults to Windows
 .PARAMETER IsADC
     Sets Citrix ADC mode - will obtain plan, product, and publisher information for the new machines
     WARNING: You MUST have the supporting LB and IPs at Standard SKU. Basic is NOT supported
 .EXAMPLE
     .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO
 .EXAMPLE
-    .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO -OSType Linux -IsADC
+    .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 -AvailabilitySetName AS-DEMO -IsADC
 #>
 
 #region Params
