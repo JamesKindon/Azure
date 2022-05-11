@@ -473,8 +473,8 @@ if ($BackupRemovalConfirmation -eq "Y") {
         }
 
         # Add NIC(s) and keep the same NIC as primary
-        Write-Log -Message "Setting Network Interfaces for replacement VM $($VMName)" -Level Info
-        foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {	
+        foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {
+            Write-Log -Message "Adding NIC: $($nic.Id | split-Path -leaf) to VM config: $($SourceVM.Name)" -Level Info	
             if ($nic.Primary -eq "True") {
                 Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
             }

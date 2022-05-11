@@ -226,7 +226,8 @@ function RecreateSourceVM {
         }
 
         # Add NIC(s) and keep the same NIC as primary
-        foreach ($nic in $RestoreVM.NetworkProfile.NetworkInterfaces) {	
+        foreach ($nic in $RestoreVM.NetworkProfile.NetworkInterfaces) {
+            Write-Log -Message "Adding NIC: $($nic.Id | split-Path -leaf) to VM config: $($RestoreVM.Name)" -Level Info	
             if ($nic.Primary -eq "True") {
                 Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
              }
@@ -483,19 +484,14 @@ try {
     }
 
     # Add NIC(s) and keep the same NIC as primary
-    Write-Log -Message "Adding NIC: $($SourceVM.NetworkProfile.NetworkInterfaces.Id | split-Path -leaf) to VM config: $($SourceVM.Name)" -Level Info
-    try {
-        foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {	
-            if ($nic.Primary -eq "True") {
-                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
-            }
-            else {
-                Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -ErrorAction Stop | Out-Null
-            }
+    foreach ($nic in $SourceVM.NetworkProfile.NetworkInterfaces) {
+        Write-Log -Message "Adding NIC: $($nic.Id | split-Path -leaf) to VM config: $($SourceVM.Name)" -Level Info
+        if ($nic.Primary -eq "True") {
+            Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -Primary -ErrorAction Stop | Out-Null
         }
-    }
-    catch {
-        Write-Log -Message $_ -Level Warn
+        else {
+            Add-AzVMNetworkInterface -VM $NewVM -Id $nic.Id -ErrorAction Stop | Out-Null
+        }
     }
 
     # Handle ADC
