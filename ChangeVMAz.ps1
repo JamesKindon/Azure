@@ -237,8 +237,8 @@ function RecreateSourceVM {
         }
 
         # Grab Sku for ADC
-        if ($IsADC.IsPresent) {
-            Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
+        if ($null -ne $RestoreVM.Plan) {
+            Write-Log -Message "Using the following plan information" -Level Info
             Write-Log -Message "----Plan Name: $($RestoreVM.Plan.Name)" -Level Info
             Write-Log -Message "----Plan Product: $($RestoreVM.Plan.Product)" -Level Info
             Write-Log -Message "----Plan Publisher: $($RestoreVM.Plan.Publisher)" -Level Info
@@ -263,6 +263,8 @@ function RecreateSourceVM {
 
         # Recreate the VM
         New-AzVM -ResourceGroupName $RestoreVM.ResourceGroupName -Location $RestoreVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
+
+        Write-Log -Message "Restored VM: $($RestoreVM.Name)" -Level Info
 
     }
     catch {
@@ -357,19 +359,24 @@ try {
     Write-Log -Message "Source VM Hardware Profile Size = $($SourceVM.HardwareProfile.VmSize)" -Level Info
     Write-Log -Message "Source VM OSType = $($SourceVM.StorageProfile.OsDisk.OsType)" -Level Info
     Write-Log -Message "Source VM OS Disk Name = $($SourceVM.StorageProfile.OsDisk.Name)" -Level Info
+    Write-Log -Message "Source VM OS Disk ID = $((Get-AzDisk -Name $SourceVM.StorageProfile.OsDisk.Name).Id)" -Level Info
     if ($null -ne $SourceVM.Zones) {
         Write-Log -Message "Source VM Zone = $($SourceVM.Zones)" -Level Info
     }
     foreach ($DataDisk in $SourceVM.StorageProfile.DataDisks) {
         Write-Log -Message "Source VM Data Disk Name = $($DataDisk.Name)" -Level Info
+        Write-Log -Message "Source VM Data Disk ID = $((Get-AzDisk -Name $DataDisk.Name).Id)" -Level Info
     }
     foreach ($Interface in $SourceVM.NetworkProfile.NetworkInterfaces) {
         Write-Log -Message "Source VM Interface Primary = $($Interface.Primary)" -Level Info
         Write-Log -Message "Source VM Interface = $($Interface.Id)" -Level Info
     }
-    Write-Log -Message "Source VM Plan Name = $($SourceVM.Plan.Name)" -Level Info
-    Write-Log -Message "Source VM Plan Product = $($SourceVM.Plan.Product)" -Level Info
-    Write-Log -Message "Source VM Plan Publisher = $($SourceVM.Plan.Publisher)" -Level Info
+
+    if ($null -ne $SourceVM.Plan) {
+        Write-Log -Message "Source VM Plan Name = $($SourceVM.Plan.Name)" -Level Info
+        Write-Log -Message "Source VM Plan Product = $($SourceVM.Plan.Product)" -Level Info
+        Write-Log -Message "Source VM Plan Publisher = $($SourceVM.Plan.Publisher)" -Level Info    
+    }
 
     if ($null -ne $SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri -and $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
         Write-Log -Message "Source VM Diagnostics Account = $($SourceVM.DiagnosticsProfile.BootDiagnostics.StorageUri)" -Level Info
@@ -495,8 +502,8 @@ try {
     }
 
     # Handle ADC
-    if ($IsADC.IsPresent) {
-        Write-Log -Message "Citrix ADC switch is present. Using the following plan information" -Level Info
+    if ($IsADC.IsPresent -or $null -ne $SourceVM.Plan) {
+        Write-Log -Message "Using the following plan information" -Level Info
         Write-Log -Message "----Plan Name: $($SourceVM.Plan.Name)" -Level Info
         Write-Log -Message "----Plan Product: $($SourceVM.Plan.Product)" -Level Info
         Write-Log -Message "----Plan Publisher: $($SourceVM.Plan.Publisher)" -Level Info
@@ -528,6 +535,13 @@ try {
 }
 catch {
     Write-Log -Message $_ -Level Warn
+
+    # If VM in failed stated, delete failed VM and start again
+    if ((Get-AzVM -ResourceGroupName $ResourceGroup -Name $SourceVM.Name).ProvisioningState -eq "Failed") {
+        Write-Log -Message "$($SourceVM.Name) is in a failed provisioning state. Deleting prior to recreating the source VM" -Level Warn
+        Remove-AzVM -ResourceGroupName $ResourceGroup -Name $SourceVM.Name -Force | Out-Null
+    }
+
     Write-Log -Message "Failed to create VM $($VMName). Attempting to recreate source VM"
     RecreateSourceVM
     StopIteration
