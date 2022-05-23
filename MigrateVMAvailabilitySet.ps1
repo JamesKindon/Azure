@@ -227,6 +227,14 @@ function RecreateSourceVM {
         # Recreate the VM
         New-AzVM -ResourceGroupName $RestoreVM.ResourceGroupName -Location $RestoreVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
 
+        # Handle VM Licensing
+        if ($RestoreVM.LicenseType -ne "None") {
+            $VMDetail = Get-AzVM -ResourceGroupName $ResourceGroup -Name $RestoreVM.Name
+            Write-Log -Message "Setting VM Licensing Detail: $($RestoreVM.LicenseType)" -Level Info
+            $VMDetail.LicenseType = $RestoreVM.LicenseType
+            Update-AzVM -ResourceGroupName $ResourceGroup -VM $VMDetail | Out-Null
+        }
+
         Write-Log -Message "Restored VM: $($RestoreVM.Name)" -Level Info
 
     }
@@ -344,6 +352,8 @@ if ($BackupRemovalConfirmation -eq "Y") {
         } elseif (-not $SourceVM.DiagnosticsProfile.BootDiagnostics.Enabled) {
             Write-Log -Message "Source VM Diagnostics = Disabled" -Level Info
         }
+
+        Write-Log -Message "Source VM Hybrid Licensing = $($SourceVM.LicenseType)"
 
         Write-Log -Message "-----------------------Config Backup End------------------------------------------" -Level Info
         #endregion
@@ -518,6 +528,15 @@ if ($BackupRemovalConfirmation -eq "Y") {
         # Recreate the VM
         Write-Log -Message "Creating the VM $($VMName)" -Level Info
         New-AzVM -ResourceGroupName $ResourceGroup -Location $SourceVM.Location -VM $NewVM -DisableBginfoExtension -ErrorAction Stop | Out-Null
+
+        # Handle VM Licensing
+        if ($SourceVM.LicenseType -ne "None") {
+            $VMDetail = Get-AzVM -ResourceGroupName $ResourceGroup -Name $SourceVM.Name
+            Write-Log -Message "Setting VM Licensing Detail: $($SourceVM.LicenseType)" -Level Info
+            $VMDetail.LicenseType = $SourceVM.LicenseType
+            Update-AzVM -ResourceGroupName $ResourceGroup -VM $VMDetail | Out-Null
+        }
+        
         Write-Log -Message "VM Creation complete. If backups are required, enroll this machine for VM backups" -Level Info
 
     }
