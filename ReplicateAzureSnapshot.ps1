@@ -52,13 +52,13 @@
 Param(
 
     [Parameter(Mandatory = $false)]
-    [string]$isAzureRunbook = "true", #Set to true if using an Azure Runbook, this will move the authentication model to the Automation Account
+    [string]$isAzureRunbook = "true", # Set to true if using an Azure Runbook, this will move the authentication model to the Automation Account
 
     [Parameter(Mandatory = $false)]
     [string]$LogPath = "C:\Logs\ReplicateAzureSnapshot.log", 
 
     [Parameter(Mandatory = $false)]
-    [int]$LogRollover = 5, # number of days before logfile rollover occurs
+    [int]$LogRollover = 5, # Number of days before logfile rollover occurs
 
     [Parameter(Mandatory = $false)]
     [string]$SourceSubscriptionID = "Source-Sub-ID",
@@ -84,11 +84,15 @@ Param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("Sync", "DontSync")]
-    [String]$Sync = "Sync", # cleanup target Resource Group if snapshot deleted in source Resource Group
+    [String]$Sync = "Sync", # Cleanup target Resource Group if snapshot deleted in source Resource Group
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("True", "False")]
-    [String]$UseTagFiltering = "True" # Use Tag Filtering to target Snapshots for Sync. If set to False, all snapshots in the source and target Resource Groups will be targeted. Tags are only used in source filtering. Be careful.
+    [String]$UseTagFiltering = "True", # Use Tag Filtering to target Snapshots for Sync. If set to False, all snapshots in the source and target Resource Groups will be targeted. Tags are only used in source filtering. Be careful.
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("True", "False")]
+    [String]$CleanupOrphanedStorageAccounts = "True" # Used to cleanup orphaned storage accounts in the target Resource Group - indicates a replication failure if these storage accounts exist
 
 )
 #endregion
@@ -320,8 +324,50 @@ Write-Log -Message "Source Resource Group is: $($SourceResourceGroup)" -Level In
 Write-Log -Message "Target Resource Group is: $($TargetResourceGroup)" -Level Info
 if ($null -ne $SnapshotName) { Write-Log -Message "Provided Snapshot name is: $($SnapshotName)" -Level Info }
 if ($null -ne $TargetRegion -and $mode -ne "DifferentSubSameRegion") { Write-Log -Message "Target Region is: $($TargetRegion)" -Level Info }
+if ($CleanupOrphanedStorageAccounts -eq "True") {Write-Log -Message "Orphaned Storage Account Cleanup is enabled" -Level Info}
 #endregion
 
+#region storage account cleanup
+#----------------------------------------------------------------------------
+# Cleanup Orphaned Storage Accounts prior to starting replication jobs
+#----------------------------------------------------------------------------
+if ($CleanupOrphanedStorageAccounts -eq "True") {
+    Write-Log -Message "Orphaned Storage Account Cleanup is enabled. Identifying and removing any orphaned storage accounts in the target Subscription prior to starting new replication jobs" -Level Info
+    
+    # Select Target Subs
+    if ($mode -ne "SameSubDifferentRegion") {
+        SelectTargetSubscription
+    } 
+    else {
+        SelectSourceSubscription
+    }
+    
+    # Get Storage Accounts
+    $storageAccountsToDelete = Get-AzStorageAccount -ResourceGroupName $TargetResourceGroup | Where-Object { $_.StorageAccountName -like "rep*" }
+
+    if ($null -ne $storageAccountsToDelete) {
+        Write-Log -Message "There are $(($storageAccountsToDelete | Measure-Object).Count) storage accounts targeted for deletion. These accounts indicate a replication failure event. Replication logs should be reviewed" -Level Info
+        foreach ($sa in $storageAccountsToDelete) {
+            try {
+                Write-Log -Message "Attempting to delete storage account: $($sa.StorageAccountName)" -Level Info
+                Remove-AzStorageAccount -Name $sa.StorageAccountName -ResourceGroupName $sa.resourceGroupName -Force -ErrorAction Stop
+                Write-Log -Message "Successfully deleted storage account: $($sa.StorageAccountName)" -Level Info
+            }
+            catch {
+                Write-Log -Message $_ -Level Warn
+                Write-Log -Message "Failed to delete storage account: $($sa.StorageAccountName)" -Level Warn
+            }
+        }
+    }
+    else {
+        Write-Log -Message "There are no orphaned storage accounts to delete" -Level Info
+    }
+}
+#endregion
+
+#----------------------------------------------------------------------------
+# Get ready for snapshot work
+#----------------------------------------------------------------------------
 SelectSourceSubscription
 
 GetSourceSubscriptionSnapshots
