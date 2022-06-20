@@ -39,6 +39,9 @@
     Script defaults to looking for a tag of "SnapReplicate" with a value of "Replicate"
     Can be used in conjunction with Sync
     Cannot be used with SnapshotName
+.PARAMETER CleanupOrphanedStorageAccounts
+    If set to True, the runbook will check the target Resource Group to make sure there are no orphaned storage accounts. These accounts become orphaned if a Sync job fails in any of the previous runs, and the script times out (after about 3 hours)
+    This is not a happy place - if there are failing jobs regularly, then investigate why
 .PARAMETER isAzureRunbook
     The designed operational model for this runbook
     Set to true, assumes you are running with a system managed identity on the automation account
