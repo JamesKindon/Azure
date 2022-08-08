@@ -571,7 +571,7 @@ function UpdateAzStorageAccountAuthForAES256 {
         Update-AzStorageAccountAuthForAES256 -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName
         Write-Log -Message "Setting Computer Account Encryption to AES 256" -Level Info
         Get-ADComputer -Identity $StorageAccountName | Set-ADComputer -KerberosEncryptionType "AES256"
-        Write-Log -Message "Settings Storage Account keys" -Level Info
+        Write-Log -Message "Setting Storage Account keys" -Level Info
         $KeyName = "kerb1" # Could be either the first or second kerberos key, this script assumes we're refreshing the first
         $KerbKeys = New-AzStorageAccountKey -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -KeyName $KeyName
         $KerbKey = $KerbKeys.keys | Where-Object {$_.KeyName -eq $KeyName} | Select-Object -ExpandProperty Value
