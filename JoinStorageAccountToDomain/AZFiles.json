@@ -5,6 +5,7 @@
     "ShareName": "fslogix",
     "DomainAccountType": "ComputerAccount",
     "OU": "OU=Azure Files,DC=Domain,DC=com",
+    "EncryptionType": "AES256",
     "FSContributorGroups": [{"name":"WVD Users"},{"name":"WVD Users2"}],
     "FSAdminUsers": [{"name":"Jkindon@domain.com"}],
     "DownloadUrl": "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.4/AzFilesHybrid.zip",

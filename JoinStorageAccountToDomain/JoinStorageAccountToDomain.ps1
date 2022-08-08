@@ -119,7 +119,11 @@ Param(
     [Switch]$SetDefaultPermission,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$EnableSMBMultiChannel
+    [Switch]$EnableSMBMultiChannel,
+
+    [Parameter(Mandatory = $false)]
+    [Switch]$UpdateAzStorageAccountAuthForAES256
+    
 )
 #endregion
 
@@ -136,6 +140,7 @@ $StorageAccountName = "--storage account name--" #storage account name
 $ShareName = "--fslogix--" #storage account share name
 $DomainAccountType = "ComputerAccount" #-DomainAccountType "<ComputerAccount|ServiceLogonAccount>"
 $OU = "--OU=Azure FIles,DC=Domain,DC=com--" #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
+$EncryptionType = "AES256" #"<AES256|RC4|AES256,RC4>"
 $FSContributorGroups = @("WVD Users") # Array of groups to Assign Storage File Data SMB Share Contributor
 $FSAdminUsers = @("Jkindon@domain.com") # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
 $DownloadUrl = "https://github.com/Azure-Samples/azure-files-samples/releases/download/v0.2.4/AzFilesHybrid.zip"
@@ -157,6 +162,7 @@ function JoinStorageAccountToDomain {
         Name                                = $StorageAccountName 
         DomainAccountType                   = $DomainAccountType
         OrganizationalUnitDistinguishedName = $OU
+        EncryptionType                      = $EncryptionType
         ErrorAction                         = "Stop"
     }
 
@@ -169,6 +175,11 @@ function JoinStorageAccountToDomain {
         Write-Log -Message $_ -Level Warn
         StopIteration
         Exit 1
+    }
+
+    if ($EncryptionType -eq "AES256") {
+        Write-Log -Message "Encryption Type is AES256, updating Storage Account" -Level Info
+        Update-AzStorageAccountAuthForAES256 -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName
     }
 }
 
@@ -551,6 +562,28 @@ function EnableSMBMultiChannel {
         Write-Log -Message "SMB MultiChannel is already enabled" -Level Info
      }
 }
+
+function UpdateAzStorageAccountAuthForAES256 {
+    # https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-enable#enable-aes-256-encryption-recommended
+    Write-Log -Message "Updating Storage Account for AES 256 Kerberos Encryption" -Level Info
+    try {
+        Update-AzStorageAccountAuthForAES256 -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName
+        Write-Log -Message "Setting Computer Account Encryption to AES 256" -Level Info
+        Get-ADComputer -Identity $StorageAccountName | Set-ADComputer -KerberosEncryptionType "AES256"
+        Write-Log -Message "Settings Storage Account keys" -Level Info
+        $KeyName = "kerb1" # Could be either the first or second kerberos key, this script assumes we're refreshing the first
+        $KerbKeys = New-AzStorageAccountKey -ResourceGroupName $ResourceGroupName -Name $StorageAccountName -KeyName $KeyName
+        $KerbKey = $KerbKeys.keys | Where-Object {$_.KeyName -eq $KeyName} | Select-Object -ExpandProperty Value
+        $NewPassword = ConvertTo-SecureString -String $KerbKey -AsPlainText -Force
+        Write-Log -Message "Setting AD Account Password" -Level Info
+        Get-ADComputer -Identity $StorageAccountName | Set-ADAccountPassword -Identity $StorageAccountName -Reset -NewPassword $NewPassword
+    }
+    catch {
+        Write-Log -Message "Failed to set Storage Account for AES 256 Kerberos Encryption" -Level Warn
+        Write-Log -Message $_ -Level Warn
+    }
+}
+
 #endregion
 
 #region execute
@@ -582,6 +615,7 @@ if ($JSON.IsPresent) {
     $ShareName = $EnvironmentDetails.ShareName #storage account share name
     $DomainAccountType = $EnvironmentDetails.DomainAccountType #-DomainAccountType "<ComputerAccount|ServiceLogonAccount>"
     $OU = $EnvironmentDetails.OU #-OrganizationalUnitDistinguishedName "<ou-distinguishedname-here>"
+    $EncryptionType = $EnvironmentDetails.EncryptionType
     $FSContributorGroups = $EnvironmentDetails.FSContributorGroups -replace "@{name=", "" -replace "}", "" # Array of groups to Assign Storage File Data SMB Share Contributor
     $FSAdminUsers = $EnvironmentDetails.FSAdminUsers -replace "@{name=", "" -replace "}", "" # Array of Admins to assign Storage File Data SMB Share Contributor and Storage File Data SMB Share Elevated Contributor roles
     $DownloadUrl = $EnvironmentDetails.DownloadUrl
@@ -759,6 +793,13 @@ if ($EnableSMBMultiChannel.IsPresent) {
 # ============================================================================
 if ($ValidateStorageAccount.IsPresent) {
     ValidateStorageAccount
+}
+
+# ============================================================================
+# Enable Storage Account Auth for AES 256 Encryption
+# ============================================================================
+if ($UpdateAzStorageAccountAuthForAES256.IsPresent) {
+    UpdateAzStorageAccountAuthForAES256
 }
 
 # ============================================================================
