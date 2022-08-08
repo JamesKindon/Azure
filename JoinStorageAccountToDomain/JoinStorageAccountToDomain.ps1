@@ -30,6 +30,8 @@
     Sets the default permission on the file share for authenticated users - no more requirement to specify a group https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-assign-permissions?tabs=azure-powershell#share-level-permissions-for-all-authenticated-identities
 .PARAMETER EnableSMBMultiChannel
     Enables SMB MultiChannel on the storage account https://docs.microsoft.com/en-us/azure/storage/files/files-smb-protocol?tabs=azure-powershell#smb-multichannel
+.PARAMETER UpdateAzStorageAccountAuthForAES256
+    Configures AES256 encryption if required post configuration and join. https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-enable#enable-aes-256-encryption-recommended
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
@@ -564,7 +566,6 @@ function EnableSMBMultiChannel {
 }
 
 function UpdateAzStorageAccountAuthForAES256 {
-    # https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-enable#enable-aes-256-encryption-recommended
     Write-Log -Message "Updating Storage Account for AES 256 Kerberos Encryption" -Level Info
     try {
         Update-AzStorageAccountAuthForAES256 -ResourceGroupName $ResourceGroupName -StorageAccountName $StorageAccountName
