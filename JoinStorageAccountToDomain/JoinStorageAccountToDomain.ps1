@@ -662,7 +662,7 @@ else {
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutFile -ErrorAction Stop
         Expand-Archive -Path $OutFile -DestinationPath $ModulePath -Force
         # Navigate to where AzFilesHybrid is unzipped and stored and run to copy the files into your path
-        Push-Location $ModulePath\AZFilesHybrid
+        Push-Location $ModulePath #\AZFilesHybrid
         .\CopyToPSPath.ps1
         #Import AzFilesHybrid module
         Import-Module -Name "AZFilesHybrid" -Force -ErrorAction Stop
