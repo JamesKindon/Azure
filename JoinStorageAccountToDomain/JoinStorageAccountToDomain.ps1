@@ -32,6 +32,8 @@
     Enables SMB MultiChannel on the storage account https://docs.microsoft.com/en-us/azure/storage/files/files-smb-protocol?tabs=azure-powershell#smb-multichannel
 .PARAMETER UpdateAzStorageAccountAuthForAES256
     Configures AES256 encryption if required post configuration and join. https://docs.microsoft.com/en-us/azure/storage/files/storage-files-identity-ad-ds-enable#enable-aes-256-encryption-recommended
+.PARAMETER TenantID
+    Sometimes if the account used to authenticate to Azure has access to multiple tenants, you may need to specify one due to MFA/Auth challenges. This parameter will enforce a "Connect-AzAccount -Tenant 'TenantID'" logic
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions
     Will join the specified Storage account to the domain, configure IAM roles and configure NTFS permissions for Containers
@@ -50,6 +52,12 @@
 .EXAMPLE
     JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -ValidateStorageAccount -SetDefaultPermission -EnableSMBMultiChannel
     Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles including the default and configure NTFS permissions for Containers and output basic storage account details. Will also enable SMB Multichannel
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -JoinStorageAccountToDomain -ConfigureIAMRoles -ConfigureNTFSPermissions -JSON -JSONInputPath C:\temp\azfiles.json -SetDefaultPermission -EnableSMBMultiChannel -TenantID 'WhateverYourAzureADTenantIDis'
+    Will import the specified JSON import file and join the specified Storage account to the domain, configure IAM roles including the default and configure NTFS permissions for Containers. Will also enable SMB Multichannel. Will use a specific Tenant ID for Auth
+.EXAMPLE
+    JoinStorageAccountToDomain.ps1 -UpdateAzStorageAccountAuthForAES256 -JSON -JSONInputPath C:\temp\azfiles.json
+    Will update an existing storage account with AES 256 Encryption
 .NOTES
     Updates 17.06.2020
     - You can use a JSON import file (good) or alter variables within this script (not so good)
@@ -82,6 +90,10 @@
     - Added SMB MultiChannel Switch
     - Removed Quota assessment given changes in Premium File Share IOPS
     - Added output for Storage File Services Properties
+    Updated 13.08.22
+    - Added AES 256 encryption as default
+    - Added AES 256 encryption retrofit function and parameter (bring an existing storage account into AES 256 encryption and handle Active Directory)
+    - Added TenantID Paramter to allow specifying a specific AzureAD tenant
 #>
 
 #region Params
@@ -124,7 +136,10 @@ Param(
     [Switch]$EnableSMBMultiChannel,
 
     [Parameter(Mandatory = $false)]
-    [Switch]$UpdateAzStorageAccountAuthForAES256
+    [Switch]$UpdateAzStorageAccountAuthForAES256,
+
+    [Parameter(Mandatory = $false)]
+    [string]$TenantId = $null
     
 )
 #endregion
@@ -736,7 +751,14 @@ else {
 #Login with an Azure AD credential that has either storage account owner or contributer RBAC assignment
 Write-Log -Message "Connecting to Azure" -Level Info
 try {
-    $null = Connect-AzAccount -ErrorAction Stop
+    if ($null -eq $TenantId) {
+        Write-Log -Message "Not using a specific Tenant ID" -Level Info
+        $null = Connect-AzAccount -ErrorAction Stop
+    }
+    else {
+        Write-Log -Message "Specified a Tenant ID of $($TenantId)" -Level Info
+        $null = Connect-AzAccount -Tenant $TenantId -ErrorAction Stop
+    }
     Write-Log -Message "Connected to Azure" -Level Info
     Write-Log -Message "Setting Subscription $($SubscriptionId)" -Level Info
     $null = Select-AzSubscription -SubscriptionId $SubscriptionId -ErrorAction Stop
