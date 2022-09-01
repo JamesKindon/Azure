@@ -751,7 +751,7 @@ else {
 #Login with an Azure AD credential that has either storage account owner or contributer RBAC assignment
 Write-Log -Message "Connecting to Azure" -Level Info
 try {
-    if ($null -eq $TenantId) {
+    if ($TenantId -eq $null) {
         Write-Log -Message "Not using a specific Tenant ID" -Level Info
         $null = Connect-AzAccount -ErrorAction Stop
     }
