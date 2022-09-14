@@ -505,15 +505,16 @@ if ($mode -eq "DifferentSubDifferentRegion") {
                     Write-Log -Message "Attempting snapshot transfer for: $($Snapshot.Name) to storage account container" -Level Info
                     Start-AzStorageBlobCopy -AbsoluteUri $snapSasUrl.AccessSAS -DestContainer $Container.Name -DestContext $DestinationContext -DestBlob $Snapshot.Name -ErrorAction Stop | Out-null
                     $Sleep = "30"
-                    while (($State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete).Status -ne "Success") {
-                        # Handle snapshot transfer fails rather than loop 
-                        if ($State -eq "Failed") {
+                    do {
+                        Start-Sleep -Seconds $Sleep
+                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete
+                        if ($State.Status -eq "Failed") {
                             Write-Log -Message "The snapshot $($Snapshot.Name) has failed to replicate. This is likely an Azure fabric issue. Terminating transfer job for: $($Snapshot.Name)" -Level Warn
-                            Break
+                            break
                         }
                         Write-Log -Message "Copy status is $($State.Status), Bytes copied: $($State.BytesCopied) of: $($State.TotalBytes). Sleeping for $($Sleep) seconds" -Level Info
-                        Start-Sleep -Seconds $Sleep
-                    }
+                    } until ($State.Status -eq "Success")
+
                     Write-Log -Message "Copy status is $($State.Status). Snapshot transfer to storage account container complete" -Level Info
                 }
                 catch {
@@ -678,15 +679,16 @@ if ($mode -eq "SameSubDifferentRegion") {
                     Write-Log -Message "Attempting snapshot transfer for: $($Snapshot.Name) to storage account container" -Level Info
                     Start-AzStorageBlobCopy -AbsoluteUri $snapSasUrl.AccessSAS -DestContainer $Container.Name -DestContext $DestinationContext -DestBlob $Snapshot.Name -ErrorAction Stop | Out-null
                     $Sleep = "30"
-                    while (($State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete).Status -ne "Success") {
-                        # Handle snapshot transfer fails rather than loop 
-                        if ($State -eq "Failed") {
+                    do {
+                        Start-Sleep -Seconds $Sleep
+                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete
+                        if ($State.Status -eq "Failed") {
                             Write-Log -Message "The snapshot $($Snapshot.Name) has failed to replicate. This is likely an Azure fabric issue. Terminating transfer job for: $($Snapshot.Name)" -Level Warn
-                            Break
-                        } 
+                            break
+                        }
                         Write-Log -Message "Copy status is $($State.Status), Bytes copied: $($State.BytesCopied) of: $($State.TotalBytes). Sleeping for $($Sleep) seconds" -Level Info
-                        Start-Sleep -Seconds $Sleep 
-                    }
+                    } until ($State.Status -eq "Success")
+
                     Write-Log -Message "Copy status is $($State.Status). Snapshot transfer to storage account container complete" -Level Info
                 }
                 catch {
