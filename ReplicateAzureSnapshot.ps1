@@ -507,7 +507,7 @@ if ($mode -eq "DifferentSubDifferentRegion") {
                     $Sleep = "30"
                     do {
                         Start-Sleep -Seconds $Sleep
-                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete
+                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext
                         if ($State.Status -eq "Failed") {
                             Write-Log -Message "The snapshot $($Snapshot.Name) has failed to replicate. This is likely an Azure fabric issue. Terminating transfer job for: $($Snapshot.Name)" -Level Warn
                             break
@@ -681,7 +681,7 @@ if ($mode -eq "SameSubDifferentRegion") {
                     $Sleep = "30"
                     do {
                         Start-Sleep -Seconds $Sleep
-                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext -WaitForComplete
+                        $State = Get-AzStorageBlobCopyState -Container $Container.Name -Blob $Snapshot.Name -Context $DestinationContext
                         if ($State.Status -eq "Failed") {
                             Write-Log -Message "The snapshot $($Snapshot.Name) has failed to replicate. This is likely an Azure fabric issue. Terminating transfer job for: $($Snapshot.Name)" -Level Warn
                             break
