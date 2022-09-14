@@ -488,7 +488,7 @@ if ($mode -eq "DifferentSubDifferentRegion") {
                 #----------------------------------------------------------------------------
                 try {
                     Write-Log -Message "Attempting to create and retrieve SAS URI for snapshot $($Snapshot.Name)" -Level Info
-                    $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 3600 -Access Read -ErrorAction Stop
+                    $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 9999 -Access Read -ErrorAction Stop
                     Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)" -Level Info
                 }
                 catch {
@@ -664,7 +664,7 @@ if ($mode -eq "SameSubDifferentRegion") {
                 #----------------------------------------------------------------------------
                 try {
                     Write-Log -Message "Attempting to create and retrieve SAS URI for snapshot $($Snapshot.Name)" -Level Info
-                    $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 3600 -Access Read -ErrorAction Stop
+                    $SnapSasUrl = Grant-AzSnapShotAccess -ResourceGroupName $SourceResourceGroup -SnapshotName $Snapshot.Name -DurationInSecond 9999 -Access Read -ErrorAction Stop
                     Write-Log -Message "Successfully created SAS URI for snapshot $($Snapshot.Name)" -Level Info
                 }
                 catch {
