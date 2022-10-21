@@ -395,7 +395,7 @@ if ($mode -eq "DifferentSubSameRegion") {
                     try {
                         Write-Log -Message "Copying snapshot $($Snapshot.Name) in source Resource Group: $($SourceResourceGroup) in source Subscription $($SourceSubscriptionID) as $($Snapshot.Name) in target Resource Group $($TargetResourceGroup) in target Subscription: $($TargetSubscriptionID)" -Level Info
                         # Create Snapshot config from source snapshot in Target Subscription
-                        $SnapshotConfig = New-AzSnapshotConfig -OsType $SnapShot.OsType -Location $SnapShot.Location -CreateOption Copy -SourceResourceId $Snapshot.Id
+                        $SnapshotConfig = New-AzSnapshotConfig -OsType $SnapShot.OsType -Location $SnapShot.Location -CreateOption Copy -SourceResourceId $Snapshot.Id -HyperVGeneration $Snapshot.HyperVGeneration
                         # Create new Snapshot in Target Subcscription
                         $NewSnap = New-AzSnapshot -ResourceGroupName $TargetResourceGroup -SnapshotName $Snapshot.Name -Snapshot $SnapshotConfig -ErrorAction Stop
                         Write-Log -Message "Successfully copied snapshot $($Snapshot.Name)" -Level Info
@@ -531,7 +531,7 @@ if ($mode -eq "DifferentSubDifferentRegion") {
                 #----------------------------------------------------------------------------
                 # Build up the snapshot configuration, using the target storage account's resource ID
                 #----------------------------------------------------------------------------
-                $SnapshotConfig = New-AzSnapshotConfig -AccountType $Snapshot.Sku.Name -OsType $SnapShot.OsType -Location $TargetRegion -CreateOption "Import" -SourceUri $osDiskVhdUri -StorageAccountId $StorageAccount.Id
+                $SnapshotConfig = New-AzSnapshotConfig -AccountType $Snapshot.Sku.Name -OsType $SnapShot.OsType -Location $TargetRegion -CreateOption "Import" -SourceUri $osDiskVhdUri -StorageAccountId $StorageAccount.Id -HyperVGeneration $Snapshot.HyperVGeneration
 
                 #----------------------------------------------------------------------------
                 # Create the new snapshot in the target region
@@ -705,7 +705,7 @@ if ($mode -eq "SameSubDifferentRegion") {
                 #----------------------------------------------------------------------------
                 # Build up the snapshot configuration, using the target storage account's resource ID
                 #----------------------------------------------------------------------------
-                $SnapshotConfig = New-AzSnapshotConfig -AccountType $Snapshot.Sku.Name -OsType $SnapShot.OsType -Location $TargetRegion -CreateOption "Import" -SourceUri $osDiskVhdUri -StorageAccountId $StorageAccount.Id
+                $SnapshotConfig = New-AzSnapshotConfig -AccountType $Snapshot.Sku.Name -OsType $SnapShot.OsType -Location $TargetRegion -CreateOption "Import" -SourceUri $osDiskVhdUri -StorageAccountId $StorageAccount.Id -HyperVGeneration $Snapshot.HyperVGeneration
                 
                 #----------------------------------------------------------------------------
                 # Create the new snapshot in the target region
