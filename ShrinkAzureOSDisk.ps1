@@ -454,7 +454,12 @@ Write-Log -Message "Diskname for empty disk is: $($Emptydiskforfootername)" -Lev
 # Empty disk URI
 Write-Log -Message "Attempting to create empty disk: $($Emptydiskforfootername)" -Level Info
 try {
-    $DiskConfig = New-AzDiskConfig -Location $VM.Location -CreateOption "Empty" -DiskSizeGB $DiskSizeGB -HyperVGeneration $Disk.HyperVGeneration
+    # Handle zones
+    if ($null -eq $Disk.zones) {
+        $DiskConfig = New-AzDiskConfig -Location $VM.Location -CreateOption "Empty" -DiskSizeGB $DiskSizeGB -HyperVGeneration $Disk.HyperVGeneration
+    } else {
+        $DiskConfig = New-AzDiskConfig -Location $VM.Location -Zone $VM.Zones -CreateOption "Empty" -DiskSizeGB $DiskSizeGB -HyperVGeneration $Disk.HyperVGeneration
+    }
     $DataDisk = New-AzDisk -ResourceGroupName $ResourceGroup -DiskName $Emptydiskforfootername -Disk $DiskConfig
     Write-Log -Message "Succesfully created empty disk: $($Emptydiskforfootername)" -Level Info
 }
@@ -616,6 +621,9 @@ try {
         $DiskConfig = New-AzDiskConfig -Zone $Disk.zones -AccountType $Disk.Sku.Name -Location $VM.location -DiskSizeGB $DiskSizeGB -SourceUri $vhdUri -CreateOption "Import" -StorageAccountId $StorageAccount.Id -HyperVGeneration $Disk.HyperVGeneration -ErrorAction Stop
     }
 
+    # Set SecurityType for new OS Disk
+    $DiskConfig = Set-AzDiskSecurityProfile -Disk $DiskConfig -SecurityType $Disk.SecurityProfile.SecurityType
+    
     # Create Managed disk
     $NewManagedDisk = New-AzDisk -DiskName $NewDiskName -Disk $DiskConfig -ResourceGroupName $ResourceGroup -ErrorAction Stop
     Write-Log -Message "Success: created new disk: $($NewDiskName)" -Level Info
