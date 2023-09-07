@@ -13,7 +13,7 @@
 .PARAMETER VMName
     Name of the target VM
 .EXAMPLE
-    .\MigrateVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 
+    .\RemoveVMAvailabilitySet.ps1 -ResourceGroup RG-DEMO -VMName VM1 
 #>
 
 #region Params
