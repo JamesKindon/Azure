@@ -461,7 +461,8 @@ if ($mode -eq "DifferentSubDifferentRegion") {
         try {
             # Create the context for the storage account which will be used to copy the snapshot to the storage account 
             Write-Log -Message "Attempting to create storage account: $($StorageAccountName)" -Level Info
-            $StorageAccount = New-AzStorageAccount -ResourceGroupName $TargetResourceGroup -Name $StorageAccountName -SkuName "Standard_LRS" -Location $TargetRegion -ErrorAction Stop
+            # Added -AllowBlobPublicAccess $true to address https://techcommunity.microsoft.com/t5/azure-storage-blog/azure-storage-updating-some-default-security-settings-on-new/ba-p/3819554 Thanks chahn1
+            $StorageAccount = New-AzStorageAccount -ResourceGroupName $TargetResourceGroup -Name $StorageAccountName -SkuName "Standard_LRS" -Location $TargetRegion -AllowBlobPublicAccess $true -ErrorAction Stop
             $DestinationContext = $StorageAccount.Context
 
             Write-Log -Message "Attempting to create storage account container: $($StorageAccountName)" -Level Info
@@ -638,7 +639,8 @@ if ($mode -eq "SameSubDifferentRegion") {
             # Create the context for the storage account which will be used to copy the snapshot to the storage account
             #----------------------------------------------------------------------------
             Write-Log -Message "Attempting to create storage account: $($StorageAccountName)" -Level Info
-            $StorageAccount = New-AzStorageAccount -ResourceGroupName $TargetResourceGroup -Name $StorageAccountName -SkuName "Standard_LRS" -Location $TargetRegion -ErrorAction Stop
+            # Added -AllowBlobPublicAccess $true to address https://techcommunity.microsoft.com/t5/azure-storage-blog/azure-storage-updating-some-default-security-settings-on-new/ba-p/3819554 Thanks chahn1
+            $StorageAccount = New-AzStorageAccount -ResourceGroupName $TargetResourceGroup -Name $StorageAccountName -SkuName "Standard_LRS" -Location $TargetRegion -AllowBlobPublicAccess $true -ErrorAction Stop
             $DestinationContext = $StorageAccount.Context
 
             Write-Log -Message "Attempting to create storage account container: $($StorageAccountName)" -Level Info
